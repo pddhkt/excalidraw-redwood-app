@@ -11,7 +11,7 @@
 
 ## Core Concept & Goals
 
-This project extends the functionality of Excalidraw by adding robust organization, collaboration, and project management features specifically designed for visual project planning and team coordination. Building on existing Excalidraw capabilities, the focus is on implementing the organization and collaboration features that are currently missing from the standard implementation.
+This project extends the functionality of Excalidraw by adding robust organization, collaboration, and project management features specifically designed for visual project planning and team coordination.
 
 The main objective is to provide a more structured and interactive environment for teams to create, share, and manage visual project documentation and wireframes with enhanced collaborative capabilities.
 
@@ -22,7 +22,6 @@ The main objective is to provide a more structured and interactive environment f
 - **Room-based organization system** - Separate spaces for different projects/teams
 - **Project folder structure** - Hierarchical organization of drawings and assets
 - **Version history for drawings** - Track changes and revert to previous versions
-- **Commenting and feedback system** - Inline discussions on drawings
 
 ### Content Management
 - **Multi-format export capabilities** - Export drawings in various formats (PNG, SVG, PDF)
@@ -49,9 +48,10 @@ The main objective is to provide a more structured and interactive environment f
 - **Durable Objects** - Session management and real-time state
 
 ### Data Layer
-- **Prisma** - Database ORM
-- **D1** - Cloudflare's SQLite database
-- **R2** - Object storage for files and drawings
+- **Prisma** - Database ORM (app metadata)
+- **D1** - Cloudflare's SQLite database for application metadata
+- **R2** - Object storage for snapshots, exports, and large files
+- **SQLite-backed Durable Objects** - Persistent live-event storage for collaborative sessions
 
 ### Authentication & Security
 - **Passkey authentication (WebAuthn)** - Modern, secure authentication
@@ -78,7 +78,7 @@ The main objective is to provide a more structured and interactive environment f
 **Team Member**
 - Access to specific team rooms and projects
 - Can collaborate in real-time on team drawings
-- Role-based permissions (view, comment, edit, admin)
+- Role-based permissions (view, edit, admin)
 
 **Organization Admin**
 - Manages organization-wide settings and permissions
@@ -135,7 +135,7 @@ Drawing Types
 
 Authors can set any of these permission levels:
 
-- **Read-Only**: View mode using Excalidraw's built-in feature
+- **Read-Only**:
   - No editing allowed
   - No WebSocket required (static content delivery)
   - Available to guests, registered users, and team members
@@ -225,30 +225,17 @@ Drawing Load Decision Tree
 │ POST   /api/auth/register                          │
 │ POST   /api/auth/login                             │
 │ POST   /api/auth/guest                             │
-│                                                     │
+│                                                    │
 │ GET    /api/drawings/:id                           │
 │ POST   /api/drawings                               │
 │ PUT    /api/drawings/:id                           │
 │ DELETE /api/drawings/:id                           │
 │ POST   /api/drawings/:id/share                     │
 │ POST   /api/drawings/:id/copy                      │
-│                                                     │
+│                                                    │
 │ GET    /api/share/:linkCode                        │
 │ WS     /api/realtime/:sessionId                    │
 └─────────────────────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────┐
-│                  Service Layer                      │
-├──────────────┬──────────────┬──────────────────────┤
-│AuthService   │DrawingService│PermissionService     │
-├──────────────┼──────────────┼──────────────────────┤
-│register()    │create()      │checkAccess()         │
-│authenticate()│get()         │canView()             │
-│createGuest() │update()      │canEdit()             │
-│upgradeGuest()│delete()      │isOwner()             │
-│validateToken()│convertShare()│validateSettings()    │
-└──────────────┴──────────────┴──────────────────────┘
 ```
 
 ### Core Services
@@ -300,16 +287,16 @@ class PermissionService {
 │  └──────────────────────────────────────────┘ │
 │                                                │
 │  ┌──────────────────────────────────────────┐ │
-│  │          Drawing State (CRDT)            │ │
-│  │   - Current drawing data                 │ │
-│  │   - Pending operations queue             │ │
-│  │   - Version counter                      │ │
+│  │          Drawing State (CRDT + Events)   │ │
+│  │   - Current live derived state           │ │
+│  │   - Incremental events stored (event log)│ │
+│  │   - Version counter / lastSnapshotRef    │ │
 │  └──────────────────────────────────────────┘ │
 │                                                │
 │  ┌──────────────────────────────────────────┐ │
 │  │         Broadcast Manager                │ │
 │  │   - Cursor positions                     │ │
-│  │   - Drawing deltas                       │ │
+│  │   - Drawing deltas (events)              │ │
 │  │   - User presence                        │ │
 │  └──────────────────────────────────────────┘ │
 └────────────────────────────────────────────────┘
@@ -344,7 +331,7 @@ Client Request
               │
     ┌─────────┼──────────┬──────────┬───────────┐
     ▼         ▼          ▼          ▼           ▼
-Read-Only  Author-Edit  Anyone   Specific    Denied
+ Read-Only  Author-Edit  Anyone   Specific    Denied
     │         │          Edit      Users        │
     │         │           │         │           │
     ▼         ▼           ▼         ▼           ▼
@@ -361,7 +348,7 @@ Return  Enable Static Data Enable Data Static
 Data     WS    Only   Only  WS   +WS  Only
 ```
 
-### Data Flow for Collaboration
+### Data Flow for Collaboration (Hybrid event-sourcing + snapshots)
 ```
 User Action (Drawing Change)
             │
@@ -369,7 +356,7 @@ User Action (Drawing Change)
     [Client Validation]
             │
             ▼
-    WebSocket Message
+    WebSocket Message (event/delta)
             │
             ▼
 ┌──────────────────────┐
@@ -379,11 +366,15 @@ User Action (Drawing Change)
 │  └────────┬───────┘  │
 │           ▼          │
 │  ┌────────────────┐  │
-│  │  Apply CRDT    │  │
+│  │  Apply to CRDT │  │
 │  └────────┬───────┘  │
 │           ▼          │
 │  ┌────────────────┐  │
-│  │Broadcast Delta │  │
+│  │Persist Event   │  │ <- SQLite-backed DO (event log)
+│  └────────┬───────┘  │
+│           ▼          │
+│  ┌────────────────┐  │
+│  │Broadcast Event │  │
 │  └────────┬───────┘  │
 └───────────┬──────────┘
             │
@@ -392,67 +383,70 @@ User Action (Drawing Change)
  Client1 Client2 Client3
             │
             ▼
-    [Every 5 seconds]
-            │
-            ▼
-    Persist to R2
+[Snapshots to R2] (on triggers: periodic, manual, version-based)
 ```
 
-### Security Model
-```
-┌─────────────────────────────────────┐
-│         Request Pipeline            │
-├─────────────────────────────────────┤
-│                                     │
-│  1. Rate Limiting (Cloudflare)      │
-│     └─► 100 req/min per IP         │
-│                                     │
-│  2. Auth Validation (Workers)       │
-│     ├─► Valid session token        │
-│     └─► Guest session creation     │
-│                                     │
-│  3. Permission Check (Service)      │
-│     ├─► Drawing ownership          │
-│     ├─► Share settings validation  │
-│     └─► User in specific list      │
-│                                     │
-│  4. Resource Access (Storage)       │
-│     ├─► D1 for metadata           │
-│     └─► R2 for drawing data       │
-│                                     │
-│  5. Real-time Validation (DO)       │
-│     └─► Re-verify on WS connect   │
-│                                     │
-└─────────────────────────────────────┘
-```
+## Storage Strategy (Hybrid: R2 + SQLite-backed Durable Objects)
 
-### Storage Strategy
-```
-Drawing Data Storage
-│
-├── D1 Database (Metadata)
-│   ├── Drawing info, permissions
-│   ├── User sessions, share links
-│   └── Small data (<1KB per record)
-│
-├── R2 Storage (Large Files)
-│   ├── Full drawing data (JSON)
-│   ├── Thumbnails and previews
-│   ├── Version history snapshots
-│   └── Template assets
-│
-└── Durable Objects (Live State)
-    ├── Active drawing state
-    ├── Real-time user presence
-    ├── Pending operations queue
-    └── Conflict resolution data
-```
+Rationale:
+- Use R2 for efficient long-term storage and fast static delivery (personal drawings, snapshots, exports).
+- Use SQLite-backed Durable Objects for low-latency transactional persistence of incremental events during active collaborative sessions, guaranteeing consistency and quick recovery.
+- Keep a snapshot-to-R2 backup policy so long-term access, download, and analytics do not require waking the DO.
+
+Components:
+- D1 (metadata): drawing records, permissions, version references, R2 keys.
+- R2 (objects): snapshot JSON, thumbnails, exports (PNG/SVG/PDF), archived version history.
+- SQLite-backed Durable Objects (per-room): event log (drawing_events), lastAppliedVersion / snapshot reference, presence info, CRDT live state.
+
+Key operational rules:
+- Do NOT store full, unchunked drawing blobs >2 MB as single rows in DO SQLite; instead store incremental events/deltas (small JSON rows).
+- Keep compact snapshot metadata in D1 pointing to R2 snapshot keys and snapshot timestamps.
+- Use durable object to persist events immediately; create snapshots to R2 on triggers (see snapshot policy).
+
+Snapshot & Backup policy (examples; configurable)
+- On session end (no active users for N minutes) → create snapshot and store to R2.
+- On major version (user-triggered "Save Version") → create snapshot to R2.
+- Periodic timed snapshot (e.g., every 5–60s depending on activity level / resources).
+- Threshold-based snapshot: if event-log size or number of events since last snapshot exceeds a limit, create snapshot.
+- Keep a version history in R2: e.g., retained last N snapshots per drawing or time-based retention.
+
+Incremental events & event-sourcing (detailed)
+
+- Each client action generates a small event (delta) representing the change.
+- Events are appended to the DO's SQLite `drawing_events` table as ordered rows.
+- DO applies events to the in-memory CRDT or derivation to maintain current live state and broadcasts the events to connected clients.
+- New joiners:
+  1. Load last snapshot from R2 (fast CDN-backed download).
+  2. Connect to the DO and request events after the snapshot timestamp/version.
+  3. DO replies with ordered events; client replays them to catch up and then listens to live events.
+
+Suggested DB Tables inside durable object (SQLite):
+
+drawing_events
+- id INTEGER PRIMARY KEY AUTOINCREMENT
+- drawing_id TEXT
+- sequence INTEGER   -- monotonic increasing within drawing
+- event_data JSON    -- small JSON object describing the delta (<= 2MB)
+- timestamp TEXT
+
+snapshot_index (metadata inside DO or D1 pointing to R2)
+- drawing_id TEXT PRIMARY KEY
+- last_snapshot_key TEXT  -- R2 object key
+- last_snapshot_version INTEGER
+- last_snapshot_timestamp TEXT
+- last_event_sequence INTEGER
+
+Notes on limits:
+- Per-DO SQLite max BLOB / row size: 2 MB → design events so each event < 2MB.
+- Per-DO storage limit: 10 GB (Workers Paid) → adequate but plan retention/archiving to R2 for long-term storage.
+- WebSocket message size: 1 MiB (incoming) → keep events smaller or chunk large operations.
+- CPU limits per message: ensure event processing is bounded; heavy operations (bulk snapshot creation) may be offloaded or scheduled.
 
 ## User Workflows
 
 ### Personal-to-Shareable Workflow (Recommended)
 1. **Personal Creation** - User starts with a personal drawing (fast, local)
-2. **Iterate Privately** - Refine ideas without collaboration overhead
+2. **Iterate Privately** - Refine ideas without collaboration overhead (R2 autosave)
 3. **Copy to Share** - When ready, copy drawing to shareable space
 4. **Set Permissions** - Choose sharing level (view-only, collaborative, team)
 5. **Collaborate** - Real-time features activate when multiple users join
@@ -466,9 +460,8 @@ Drawing Data Storage
 ### Collaborative Drawing Sessions
 1. Users join a room (WebSocket connects automatically)
 2. Real-time collaborative drawing with live cursors
-3. Comments and feedback during drawing sessions
-4. Auto-save and version tracking
-5. Export and sharing capabilities
+3. Auto-save and version tracking (DO persists events; snapshots to R2)
+4. Export and sharing capabilities
 
 ### Guest-to-Registered Journey
 1. **Guest visits** - Can immediately start drawing
@@ -507,10 +500,9 @@ Drawing Data Storage
 
 ### Phase 3: Enhanced Features
 - [ ] Real-time collaboration with lazy-loading
-- [ ] Advanced permission system (view/comment/edit/admin)
+- [ ] Advanced permission system (view/edit/admin)
 - [ ] Organization-based workspaces
 - [ ] Version history and drawing forks
-- [ ] Commenting system
 - [ ] Template library
 
 ### Phase 4: Integration & Polish
@@ -555,10 +547,11 @@ Drawing Data Storage
 - parent_drawing_id (for copies/forks)
 - access_mode (personal/shared/collaborative)
 - organization_id (nullable)
-- drawing_data (json)
 - thumbnail_url
 - is_template (boolean)
 - created_at, updated_at
+- latest_snapshot_key (R2 key)
+- latest_snapshot_version
 ```
 
 **Permissions Table**
@@ -566,7 +559,7 @@ Drawing Data Storage
 - id (uuid)
 - drawing_id (foreign key)
 - user_id (foreign key)
-- permission_level (view/comment/edit/admin)
+- permission_level (view/edit/admin)
 - granted_by (user_id)
 - expires_at (nullable)
 - created_at
@@ -600,48 +593,47 @@ Drawing Data Storage
 
 ### Real-time Architecture
 - WebSocket connections for live collaboration
-- Conflict resolution for concurrent edits
-- Efficient delta synchronization
+- Conflict resolution for concurrent edits (CRDT)
+- Efficient delta synchronization (event sourcing)
 - Presence indicators and live cursors
 
 ### Performance Optimization Strategy
 
 **Resource Management**
-- Personal drawings: No WebSocket overhead
-- Shared drawings: Static content delivery
-- Collaborative drawings: On-demand WebSocket connections
+- Personal drawings: No WebSocket overhead (R2 autosave)
+- Shared drawings: Static content delivery (R2 snapshots)
+- Collaborative drawings: SQLite-backed Durable Objects for event persistence and on-demand WebSockets
 - Live sessions: Full real-time infrastructure
 
 **Smart Loading**
 ```javascript
 // Pseudo-code for mode detection
-function loadDrawing(drawingId, userId) {
+async function loadDrawing(drawingId, userId) {
   const drawing = await getDrawing(drawingId);
   const userCount = await getActiveUsers(drawingId);
 
   if (drawing.access_mode === 'personal') {
-    return loadPersonalMode(drawing);
+    return loadPersonalMode(drawing); // R2-based
   }
 
   if (userCount === 0) {
-    return loadStaticMode(drawing);
+    return loadStaticMode(drawing); // R2 snapshot
   }
 
   if (userCount === 1) {
-    return loadCollaborativeMode(drawing, 'lazy');
+    return loadCollaborativeMode(drawing, 'lazy'); // DO but minimal
   }
 
-  return loadLiveMode(drawing);
+  return loadLiveMode(drawing); // full DO + WS
 }
 ```
 
 **Performance Targets**
 - Personal drawings: < 50ms load time
 - Read-only shareable: < 75ms load time (static content)
-- Comment-only: < 100ms load time + lightweight WebSocket
 - Edit-enabled shareable: < 150ms to first interaction
 - Active collaboration: < 100ms collaboration latency
-- Efficient storage of large drawing files (up to 10MB)
+- Efficient storage of large drawing files (up to 10MB in R2 snapshots)
 - Scalable to hundreds of concurrent users per room
 
 ---

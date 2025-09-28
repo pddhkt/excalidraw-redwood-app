@@ -13,6 +13,7 @@ import { requestInfo } from "rwsdk/worker";
 import { db } from "@/db";
 import { env } from "cloudflare:workers";
 import { updateLastLogin, updateLastActivity } from "@/auth/user-utils";
+import { createSessionData, updateSessionActivity, isSessionExpired, type SessionData } from "@/auth/session-utils";
 
 function getWebAuthnConfig(request: Request) {
   const rpID = env.WEBAUTHN_RP_ID ?? new URL(request.url).hostname;
@@ -108,7 +109,7 @@ export async function finishPasskeyRegistration(
   return true;
 }
 
-export async function finishPasskeyLogin(login: AuthenticationResponseJSON) {
+export async function finishPasskeyLogin(login: AuthenticationResponseJSON, rememberMe: boolean = false) {
   const { request, response } = requestInfo;
   const { origin } = new URL(request.url);
 
@@ -169,10 +170,72 @@ export async function finishPasskeyLogin(login: AuthenticationResponseJSON) {
   await updateLastLogin(user.id);
   await updateLastActivity(user.id);
 
+  // Create enhanced session data with remember me support
+  const sessionData = createSessionData(user.id, rememberMe);
   await sessions.save(response.headers, {
-    userId: user.id,
+    ...sessionData,
     challenge: null,
   });
 
+  return true;
+}
+
+/**
+ * Validates and refreshes an existing session
+ */
+export async function validateSession() {
+  const { request, response } = requestInfo;
+  const session = await sessions.load(request);
+
+  if (!session || !session.userId) {
+    return null;
+  }
+
+  // Check if session has expired
+  if (session.expiresAt && isSessionExpired(new Date(session.expiresAt))) {
+    await sessions.save(response.headers, null);
+    return null;
+  }
+
+  // Update session activity and extend if needed
+  if (session.createdAt && session.expiresAt && session.rememberMe !== undefined) {
+    const sessionData: SessionData = {
+      userId: session.userId,
+      createdAt: new Date(session.createdAt),
+      expiresAt: new Date(session.expiresAt),
+      rememberMe: session.rememberMe,
+      lastActivity: new Date(session.lastActivity || session.createdAt),
+      challenge: session.challenge
+    };
+
+    const updatedSession = updateSessionActivity(sessionData);
+
+    // Update user's last activity in database
+    await updateLastActivity(session.userId);
+
+    // Save updated session
+    await sessions.save(response.headers, {
+      ...updatedSession,
+      challenge: session.challenge,
+    });
+
+    return {
+      userId: session.userId,
+      tier: null, // Will be fetched separately if needed
+    };
+  }
+
+  return {
+    userId: session.userId,
+    tier: null,
+  };
+}
+
+/**
+ * Logs out a user by clearing their session
+ */
+export async function logout() {
+  const { response } = requestInfo;
+  await sessions.save(response.headers, null);
   return true;
 }

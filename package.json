@@ -24,6 +24,11 @@
     "generate": "rw-scripts ensure-env && prisma generate && wrangler types",
     "check": "npm run generate && npm run types",
     "types": "tsc",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage",
+    "test:watch": "vitest --watch",
+    "test:run": "vitest run",
     "prepare": "vibe-rules install cursor"
   },
   "dependencies": {

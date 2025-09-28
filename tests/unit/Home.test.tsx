@@ -1,13 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { Home } from '@/app/pages/Home'
+import type { RequestInfo } from 'rwsdk/worker'
 
-// Create a proper RequestInfo mock
-const createMockRequestInfo = (user: any = null) => ({
+// Create a proper RequestInfo mock using type assertion
+const createMockRequestInfo = (user: any = null): RequestInfo => ({
   request: new Request('http://localhost:3000'),
   params: {},
   headers: new Headers(),
-  rw: {},
+  rw: {} as any,
   response: new Response(),
   cf: {},
   isAction: false,
@@ -16,7 +17,7 @@ const createMockRequestInfo = (user: any = null) => ({
     session: null,
     headers: new Headers()
   }
-})
+} as RequestInfo)
 
 describe('Home Component', () => {
   it('displays login message when user is not authenticated', () => {

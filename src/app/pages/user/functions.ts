@@ -15,6 +15,7 @@ import { env } from "cloudflare:workers";
 import { updateLastLogin, updateLastActivity } from "@/auth/user-utils";
 import { createSessionData, updateSessionActivity, isSessionExpired, type SessionData } from "@/auth/session-utils";
 import { createGuestSession as createGuestSessionData, isGuestSession, validateGuestSession, upgradeGuestToRegistered, type GuestSessionData } from "@/auth/guest-session-utils";
+import { sessionHasPermission, getUserPermissions, type Permission } from "@/auth/permissions";
 
 function getWebAuthnConfig(request: Request) {
   const rpID = env.WEBAUTHN_RP_ID ?? new URL(request.url).hostname;
@@ -291,6 +292,12 @@ export async function validateSession() {
     // Update user's last activity in database
     await updateLastActivity(session.userId);
 
+    // Fetch user tier from database
+    const user = await db.user.findUnique({
+      where: { id: session.userId },
+      select: { tier: true }
+    });
+
     // Save updated session
     await sessions.save(response.headers, {
       ...updatedSession,
@@ -299,14 +306,70 @@ export async function validateSession() {
 
     return {
       userId: session.userId,
-      tier: null, // Will be fetched separately if needed
+      tier: user?.tier || 'REGISTERED', // Default to REGISTERED if not found
     };
   }
 
+  // Fetch user tier from database for fallback case
+  const user = await db.user.findUnique({
+    where: { id: session.userId },
+    select: { tier: true }
+  });
+
   return {
     userId: session.userId,
-    tier: null,
+    tier: user?.tier || 'REGISTERED',
   };
+}
+
+/**
+ * Check if current session has a specific permission
+ */
+export async function checkPermission(permission: Permission) {
+  const session = await validateSession();
+  return sessionHasPermission(session, permission);
+}
+
+/**
+ * Get all permissions for the current session
+ */
+export async function getCurrentPermissions() {
+  const session = await validateSession();
+  return getUserPermissions(session);
+}
+
+/**
+ * Get current user's tier
+ */
+export async function getCurrentTier() {
+  const session = await validateSession();
+  if (!session) return 'GUEST';
+  return session.tier || 'GUEST';
+}
+
+/**
+ * Check if current user can perform an action
+ */
+export async function canPerformAction(action: string) {
+  const session = await validateSession();
+
+  // Define action-to-permission mappings
+  const actionPermissions: Record<string, Permission> = {
+    'create_drawing': 'create_drawing',
+    'save_drawing': 'save_drawing',
+    'share_drawing': 'share_drawing',
+    'access_library': 'access_personal_library',
+    'manage_team': 'manage_team',
+    'access_team_rooms': 'access_team_rooms',
+    'collaborate': 'collaborate_real_time'
+  };
+
+  const requiredPermission = actionPermissions[action];
+  if (!requiredPermission) {
+    return true; // No specific permission required
+  }
+
+  return sessionHasPermission(session, requiredPermission);
 }
 
 /**

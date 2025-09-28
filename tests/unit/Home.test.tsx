@@ -9,6 +9,8 @@ const createMockRequestInfo = (user: any = null) => ({
   headers: new Headers(),
   rw: {},
   response: new Response(),
+  cf: {},
+  isAction: false,
   ctx: {
     user,
     session: null,

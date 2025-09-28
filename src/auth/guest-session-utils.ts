@@ -46,7 +46,7 @@ export function createGuestSession(): GuestSessionData {
  * Type guard to check if session data is a guest session
  */
 export function isGuestSession(sessionData: any): sessionData is GuestSessionData {
-  return (
+  return !!(
     sessionData &&
     typeof sessionData.sessionId === 'string' &&
     sessionData.isGuest === true &&

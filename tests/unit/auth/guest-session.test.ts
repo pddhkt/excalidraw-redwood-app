@@ -24,7 +24,9 @@ describe('Guest Session Management', () => {
         isGuest: true,
         createdAt: now,
         expiresAt: new Date('2024-01-01T14:00:00Z'), // 2 hours later
-        lastActivity: now
+        lastActivity: now,
+        userId: null,
+        challenge: null
       })
       expect(guestSession.sessionId).toMatch(/^guest_[a-f0-9]{32}$/)
     })

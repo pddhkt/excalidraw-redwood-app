@@ -49,6 +49,14 @@ jobs:
           NODE_ENV: test
           SKIP_ENV_VALIDATION: true
 
+      - name: 🗄️ Setup database
+        run: |
+          # Create a temporary SQLite database for testing
+          mkdir -p tmp
+          touch tmp/test.db
+        env:
+          DATABASE_URL: "file:./tmp/test.db"
+
       - name: 🏗 Type check
         run: pnpm run types
 
@@ -61,6 +69,9 @@ jobs:
         run: pnpm run build
         env:
           NODE_ENV: production
+          SKIP_ENV_VALIDATION: true
+          RWSDK_DEPLOY: 1
+          DATABASE_URL: "file:./tmp/test.db"
 
       - name: ✅ Test Summary
         if: always()

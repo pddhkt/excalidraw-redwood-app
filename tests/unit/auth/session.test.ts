@@ -63,7 +63,7 @@ describe('Session Enhancement', () => {
 
     describe('shouldExtendSession', () => {
       it('should extend session when more than half time has passed', () => {
-        const now = new Date('2024-01-01T18:00:00Z') // 6 hours later
+        const now = new Date('2024-01-02T01:00:00Z') // 13 hours later (more than half of 24)
         vi.setSystemTime(now)
 
         const createdAt = new Date('2024-01-01T12:00:00Z')
@@ -82,14 +82,24 @@ describe('Session Enhancement', () => {
         expect(shouldExtendSession(createdAt, expiresAt)).toBe(false)
       })
 
-      it('should extend remember me session appropriately', () => {
-        const now = new Date('2024-01-16T12:00:00Z') // 15 days later
+      it('should extend remember me session when more than half time has passed', () => {
+        const now = new Date('2024-01-17T12:00:00Z') // 16 days later (more than half of 30)
         vi.setSystemTime(now)
 
         const createdAt = new Date('2024-01-01T12:00:00Z')
         const expiresAt = new Date('2024-01-31T12:00:00Z') // 30 day session
 
         expect(shouldExtendSession(createdAt, expiresAt)).toBe(true)
+      })
+
+      it('should not extend remember me session when exactly at half time', () => {
+        const now = new Date('2024-01-16T12:00:00Z') // 15 days later (exactly half of 30)
+        vi.setSystemTime(now)
+
+        const createdAt = new Date('2024-01-01T12:00:00Z')
+        const expiresAt = new Date('2024-01-31T12:00:00Z') // 30 day session
+
+        expect(shouldExtendSession(createdAt, expiresAt)).toBe(false) // Exactly half is not > half
       })
     })
   })

@@ -29,3 +29,11 @@ beforeEach(() => {
 
 // Mock environment variables if needed
 process.env.NODE_ENV = 'test'
+
+// Mock cloudflare:workers module for tests
+vi.mock('cloudflare:workers', () => ({
+  env: {
+    WEBAUTHN_RP_ID: 'test.example.com',
+    WEBAUTHN_APP_NAME: 'Test App'
+  }
+}))

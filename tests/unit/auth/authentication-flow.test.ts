@@ -52,19 +52,30 @@ describe('Authentication Flow with Remember Me', () => {
       const { verifyAuthenticationResponse } = await import('@simplewebauthn/server')
 
       // Mock successful authentication
-      sessions.load.mockResolvedValue({ challenge: 'test-challenge' })
-      db.credential.findUnique.mockResolvedValue({
+      const mockLoad = sessions.load as any
+      const mockSave = sessions.save as any
+      mockLoad.mockResolvedValue({ challenge: 'test-challenge' })
+      mockSave.mockResolvedValue(undefined)
+
+      const mockCredentialFind = db.credential.findUnique as any
+      const mockCredentialUpdate = db.credential.update as any
+      const mockUserFind = db.user.findUnique as any
+
+      mockCredentialFind.mockResolvedValue({
         userId: 'user123',
         credentialId: 'cred123',
         publicKey: 'pubkey',
         counter: 1
       })
-      db.user.findUnique.mockResolvedValue({
+      mockUserFind.mockResolvedValue({
         id: 'user123',
         username: 'testuser',
         tier: 'REGISTERED'
       })
-      verifyAuthenticationResponse.mockResolvedValue({
+      mockCredentialUpdate.mockResolvedValue({})
+
+      const mockVerify = verifyAuthenticationResponse as any
+      mockVerify.mockResolvedValue({
         verified: true,
         authenticationInfo: { newCounter: 2 }
       })
@@ -78,7 +89,7 @@ describe('Authentication Flow with Remember Me', () => {
       const result = await finishPasskeyLogin(mockLogin, true)
 
       expect(result).toBe(true)
-      expect(sessions.save).toHaveBeenCalledWith(
+      expect(mockSave).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({
           userId: 'user123',
@@ -94,19 +105,30 @@ describe('Authentication Flow with Remember Me', () => {
       const { verifyAuthenticationResponse } = await import('@simplewebauthn/server')
 
       // Mock successful authentication
-      sessions.load.mockResolvedValue({ challenge: 'test-challenge' })
-      db.credential.findUnique.mockResolvedValue({
+      const mockLoad = sessions.load as any
+      const mockSave = sessions.save as any
+      mockLoad.mockResolvedValue({ challenge: 'test-challenge' })
+      mockSave.mockResolvedValue(undefined)
+
+      const mockCredentialFind = db.credential.findUnique as any
+      const mockCredentialUpdate = db.credential.update as any
+      const mockUserFind = db.user.findUnique as any
+
+      mockCredentialFind.mockResolvedValue({
         userId: 'user123',
         credentialId: 'cred123',
         publicKey: 'pubkey',
         counter: 1
       })
-      db.user.findUnique.mockResolvedValue({
+      mockUserFind.mockResolvedValue({
         id: 'user123',
         username: 'testuser',
         tier: 'REGISTERED'
       })
-      verifyAuthenticationResponse.mockResolvedValue({
+      mockCredentialUpdate.mockResolvedValue({})
+
+      const mockVerify = verifyAuthenticationResponse as any
+      mockVerify.mockResolvedValue({
         verified: true,
         authenticationInfo: { newCounter: 2 }
       })
@@ -120,7 +142,7 @@ describe('Authentication Flow with Remember Me', () => {
       const result = await finishPasskeyLogin(mockLogin, false)
 
       expect(result).toBe(true)
-      expect(sessions.save).toHaveBeenCalledWith(
+      expect(mockSave).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({
           userId: 'user123',
@@ -135,33 +157,41 @@ describe('Authentication Flow with Remember Me', () => {
     it('should return null for expired session', async () => {
       const { sessions } = await import('@/session/store')
 
+      const mockLoad = sessions.load as any
+      const mockSave = sessions.save as any
+
       const expiredDate = new Date('2024-01-01T12:00:00Z')
-      sessions.load.mockResolvedValue({
+      mockLoad.mockResolvedValue({
         userId: 'user123',
         expiresAt: expiredDate.toISOString(),
         createdAt: new Date('2023-12-31T12:00:00Z').toISOString(),
         rememberMe: false
       })
+      mockSave.mockResolvedValue(undefined)
 
       vi.setSystemTime(new Date('2024-01-02T12:00:00Z'))
 
       const result = await validateSession()
 
       expect(result).toBeNull()
-      expect(sessions.save).toHaveBeenCalledWith(expect.anything(), null)
+      expect(mockSave).toHaveBeenCalledWith(expect.anything(), {})
     })
 
     it('should return user data for valid session', async () => {
       const { sessions } = await import('@/session/store')
 
+      const mockLoad = sessions.load as any
+      const mockSave = sessions.save as any
+
       const futureDate = new Date('2024-01-02T12:00:00Z')
-      sessions.load.mockResolvedValue({
+      mockLoad.mockResolvedValue({
         userId: 'user123',
         expiresAt: futureDate.toISOString(),
         createdAt: new Date('2024-01-01T12:00:00Z').toISOString(),
         rememberMe: false,
         lastActivity: new Date('2024-01-01T12:00:00Z').toISOString()
       })
+      mockSave.mockResolvedValue(undefined)
 
       vi.setSystemTime(new Date('2024-01-01T18:00:00Z'))
 
@@ -176,20 +206,24 @@ describe('Authentication Flow with Remember Me', () => {
     it('should extend session when more than half time has passed', async () => {
       const { sessions } = await import('@/session/store')
 
+      const mockLoad = sessions.load as any
+      const mockSave = sessions.save as any
+
       const now = new Date('2024-01-01T18:00:00Z')
       vi.setSystemTime(now)
 
-      sessions.load.mockResolvedValue({
+      mockLoad.mockResolvedValue({
         userId: 'user123',
         expiresAt: new Date('2024-01-02T12:00:00Z').toISOString(),
         createdAt: new Date('2024-01-01T12:00:00Z').toISOString(),
         rememberMe: false,
         lastActivity: new Date('2024-01-01T12:00:00Z').toISOString()
       })
+      mockSave.mockResolvedValue(undefined)
 
       await validateSession()
 
-      expect(sessions.save).toHaveBeenCalledWith(
+      expect(mockSave).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({
           userId: 'user123',
@@ -204,10 +238,13 @@ describe('Authentication Flow with Remember Me', () => {
     it('should clear session on logout', async () => {
       const { sessions } = await import('@/session/store')
 
+      const mockSave = sessions.save as any
+      mockSave.mockResolvedValue(undefined)
+
       const result = await logout()
 
       expect(result).toBe(true)
-      expect(sessions.save).toHaveBeenCalledWith(expect.anything(), null)
+      expect(mockSave).toHaveBeenCalledWith(expect.anything(), {})
     })
   })
 })

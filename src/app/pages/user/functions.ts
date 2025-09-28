@@ -191,14 +191,19 @@ export async function validateSession() {
     return null;
   }
 
+  // Type guard for extended session data
+  const hasExtendedData = (s: any): s is SessionData => {
+    return s && typeof s.expiresAt === 'string' && typeof s.rememberMe === 'boolean';
+  };
+
   // Check if session has expired
-  if (session.expiresAt && isSessionExpired(new Date(session.expiresAt))) {
-    await sessions.save(response.headers, null);
+  if (hasExtendedData(session) && isSessionExpired(new Date(session.expiresAt))) {
+    await sessions.save(response.headers, {});
     return null;
   }
 
   // Update session activity and extend if needed
-  if (session.createdAt && session.expiresAt && session.rememberMe !== undefined) {
+  if (hasExtendedData(session)) {
     const sessionData: SessionData = {
       userId: session.userId,
       createdAt: new Date(session.createdAt),
@@ -236,6 +241,6 @@ export async function validateSession() {
  */
 export async function logout() {
   const { response } = requestInfo;
-  await sessions.save(response.headers, null);
+  await sessions.save(response.headers, {});
   return true;
 }

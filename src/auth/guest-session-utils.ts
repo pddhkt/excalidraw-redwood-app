@@ -1,11 +1,14 @@
 import { createSessionData, type SessionData } from './session-utils'
 
+// Extended session data for guest users
 export interface GuestSessionData {
   sessionId: string
   isGuest: true
   createdAt: Date
   expiresAt: Date
   lastActivity: Date
+  challenge?: string | null
+  userId?: null // Guests don't have userIds
 }
 
 // Guest session duration: 2 hours
@@ -33,7 +36,9 @@ export function createGuestSession(): GuestSessionData {
     isGuest: true,
     createdAt: now,
     expiresAt: new Date(now.getTime() + GUEST_SESSION_DURATION),
-    lastActivity: now
+    lastActivity: now,
+    userId: null,
+    challenge: null
   }
 }
 
@@ -74,7 +79,9 @@ export function validateGuestSession(guestSession: any): GuestSessionData | null
     isGuest: true,
     createdAt,
     expiresAt,
-    lastActivity: now
+    lastActivity: now,
+    userId: null,
+    challenge: guestSession.challenge || null
   }
 
   // Check if session should be extended (more than half time has passed)

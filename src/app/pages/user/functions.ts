@@ -213,7 +213,13 @@ export async function createGuestSession(): Promise<GuestSessionData> {
   const { response } = requestInfo;
 
   const guestSessionData = createGuestSessionData();
-  await sessions.save(response.headers, guestSessionData);
+
+  // Save in a format compatible with the session store
+  await sessions.save(response.headers, {
+    userId: null,
+    challenge: null,
+    ...guestSessionData
+  });
 
   return guestSessionData;
 }
@@ -240,7 +246,11 @@ export async function validateSession() {
     }
 
     // Save updated guest session
-    await sessions.save(response.headers, validatedGuestSession);
+    await sessions.save(response.headers, {
+      userId: null,
+      challenge: session.challenge || null,
+      ...validatedGuestSession
+    });
 
     return {
       sessionId: validatedGuestSession.sessionId,

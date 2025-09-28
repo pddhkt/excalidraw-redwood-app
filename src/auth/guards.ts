@@ -35,7 +35,7 @@ export async function authGuard(route: string, session: SessionData): Promise<Gu
     }
 
     // Check if it's a guest session
-    if ('isGuest' in session && session.isGuest) {
+    if ('isGuest' in session && session.isGuest === true) {
       return {
         canAccess: false,
         redirectTo: `/login?redirect=${encodeURIComponent(route)}`,
@@ -181,7 +181,7 @@ export interface GuardConditions {
 export async function compositeGuard(conditions: GuardConditions, session: SessionData): Promise<GuardResult> {
   // Check authentication
   if (conditions.requireAuth) {
-    if (!session || ('isGuest' in session && session.isGuest)) {
+    if (!session || ('isGuest' in session && session.isGuest === true)) {
       return {
         canAccess: false,
         redirectTo: '/login',

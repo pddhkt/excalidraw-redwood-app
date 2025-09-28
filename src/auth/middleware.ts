@@ -30,7 +30,7 @@ export function requireAuth(session: SessionData): AuthResult {
   }
 
   // Check if it's a guest session
-  if ('isGuest' in session && session.isGuest) {
+  if ('isGuest' in session && session.isGuest === true) {
     return {
       allowed: false,
       redirectTo: '/login',
@@ -188,7 +188,7 @@ export function isAuthenticated(session: SessionData): boolean {
  */
 export function isGuest(session: SessionData): boolean {
   if (!session) return true
-  return 'isGuest' in session && session.isGuest
+  return 'isGuest' in session && session.isGuest === true
 }
 
 /**

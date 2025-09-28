@@ -19,7 +19,7 @@ export type SessionData = {
   tier: UserTier
 } | {
   sessionId: string
-  isGuest: true
+  isGuest: boolean
   tier: UserTier
 } | null
 
@@ -88,7 +88,7 @@ export function getUserPermissions(session: SessionData): Permission[] {
     return []
   }
 
-  if ('isGuest' in session && session.isGuest) {
+  if ('isGuest' in session && session.isGuest === true) {
     return getPermissionsForTier('GUEST')
   }
 
@@ -115,7 +115,7 @@ export function getSessionTier(session: SessionData): UserTier {
     return 'GUEST'
   }
 
-  if ('isGuest' in session && session.isGuest) {
+  if ('isGuest' in session && session.isGuest === true) {
     return 'GUEST'
   }
 

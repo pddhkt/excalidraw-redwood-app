@@ -12,6 +12,7 @@ import { sessions } from "@/session/store";
 import { requestInfo } from "rwsdk/worker";
 import { db } from "@/db";
 import { env } from "cloudflare:workers";
+import { updateLastLogin, updateLastActivity } from "@/auth/user-utils";
 
 function getWebAuthnConfig(request: Request) {
   const rpID = env.WEBAUTHN_RP_ID ?? new URL(request.url).hostname;
@@ -90,6 +91,8 @@ export async function finishPasskeyRegistration(
   const user = await db.user.create({
     data: {
       username,
+      tier: 'REGISTERED', // Explicitly set default tier
+      lastActivity: new Date(),
     },
   });
 
@@ -161,6 +164,10 @@ export async function finishPasskeyLogin(login: AuthenticationResponseJSON) {
   if (!user) {
     return false;
   }
+
+  // Update login timestamp and activity
+  await updateLastLogin(user.id);
+  await updateLastActivity(user.id);
 
   await sessions.save(response.headers, {
     userId: user.id,

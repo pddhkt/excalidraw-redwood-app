@@ -21,10 +21,19 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum UserTier {
+  GUEST
+  REGISTERED
+  TEAM_MEMBER
+}
+
 model User {
   id          String      @id @default(uuid()) // User ID (UUID-based)
   username    String      @unique
+  tier        UserTier    @default(REGISTERED)
   createdAt   DateTime    @default(now())
+  lastLoginAt DateTime?
+  lastActivity DateTime   @default(now())
 
   credentials Credential[] // Relationship: One user can have many credentials
 }

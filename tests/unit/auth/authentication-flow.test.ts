@@ -82,7 +82,14 @@ describe('Authentication Flow with Remember Me', () => {
 
       const mockLogin = {
         id: 'cred123',
-        response: {},
+        rawId: 'cred123',
+        response: {
+          clientDataJSON: 'eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoidGVzdC1jaGFsbGVuZ2UiLCJvcmlnaW4iOiJodHRwczovL2V4YW1wbGUuY29tIn0',
+          authenticatorData: 'SZYN5YgOjGh0NBcPZHZgW4_krrmihjLHmVzzuoMdl2NBAAAABg',
+          signature: 'MEQCIBz7vzjhpwuKhT-bO6GNe-J6VT-8vH4YAJL3L8ZnPzKxAiB4mOEJ_1u7Bp8_g3HnJ8q3L3-8k1mPpg3k2k3-q3K2Tw'
+        },
+        authenticatorAttachment: 'platform',
+        clientExtensionResults: {},
         type: 'public-key'
       }
 
@@ -135,7 +142,14 @@ describe('Authentication Flow with Remember Me', () => {
 
       const mockLogin = {
         id: 'cred123',
-        response: {},
+        rawId: 'cred123',
+        response: {
+          clientDataJSON: 'eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoidGVzdC1jaGFsbGVuZ2UiLCJvcmlnaW4iOiJodHRwczovL2V4YW1wbGUuY29tIn0',
+          authenticatorData: 'SZYN5YgOjGh0NBcPZHZgW4_krrmihjLHmVzzuoMdl2NBAAAABg',
+          signature: 'MEQCIBz7vzjhpwuKhT-bO6GNe-J6VT-8vH4YAJL3L8ZnPzKxAiB4mOEJ_1u7Bp8_g3HnJ8q3L3-8k1mPpg3k2k3-q3K2Tw'
+        },
+        authenticatorAttachment: 'platform',
+        clientExtensionResults: {},
         type: 'public-key'
       }
 

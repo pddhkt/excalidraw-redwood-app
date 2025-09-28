@@ -126,7 +126,7 @@ describe('Route Protection System', () => {
       it('should allow access to public routes for all users', async () => {
         const { authGuard } = await import('@/auth/guards')
 
-        const guestResult = await authGuard('/', { sessionId: 'guest_123', isGuest: true, tier: 'GUEST' })
+        const guestResult = await authGuard('/', { sessionId: 'guest_123', isGuest: true as const, tier: 'GUEST' as UserTier })
         expect(guestResult.canAccess).toBe(true)
 
         const userResult = await authGuard('/', { userId: 'user123', tier: 'REGISTERED' })
@@ -139,7 +139,7 @@ describe('Route Protection System', () => {
       it('should block unauthenticated access to protected routes', async () => {
         const { authGuard } = await import('@/auth/guards')
 
-        const guestResult = await authGuard('/dashboard', { sessionId: 'guest_123', isGuest: true, tier: 'GUEST' })
+        const guestResult = await authGuard('/dashboard', { sessionId: 'guest_123', isGuest: true as const, tier: 'GUEST' as UserTier })
         expect(guestResult.canAccess).toBe(false)
         expect(guestResult.redirectTo).toBe('/login?redirect=/dashboard')
         expect(guestResult.reason).toBe('authentication_required')
@@ -190,7 +190,7 @@ describe('Route Protection System', () => {
       it('should handle guest permissions', async () => {
         const { permissionGuard } = await import('@/auth/guards')
 
-        const guestSession = { sessionId: 'guest_123', isGuest: true, tier: 'GUEST' as UserTier }
+        const guestSession = { sessionId: 'guest_123', isGuest: true as const, tier: 'GUEST' as UserTier }
 
         const publicResult = await permissionGuard('view_public_content', guestSession)
         expect(publicResult.hasPermission).toBe(true)

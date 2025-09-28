@@ -20,7 +20,7 @@ export type SessionData = {
 } | {
   sessionId: string
   isGuest: true
-  tier: 'GUEST'
+  tier: UserTier
 } | null
 
 // Permission mappings for each tier

@@ -144,7 +144,7 @@ describe('Role-Based Access Control', () => {
 
         const mockGuestSession = {
           sessionId: 'guest_123',
-          isGuest: true,
+          isGuest: true as const,
           tier: 'GUEST' as UserTier
         }
 
@@ -196,7 +196,7 @@ describe('Role-Based Access Control', () => {
 
         const mockGuestSession = {
           sessionId: 'guest_123',
-          isGuest: true,
+          isGuest: true as const,
           tier: 'GUEST' as UserTier
         }
 
@@ -239,7 +239,7 @@ describe('Role-Based Access Control', () => {
 
         const mockGuestSession = {
           sessionId: 'guest_123',
-          isGuest: true,
+          isGuest: true as const,
           tier: 'GUEST' as UserTier
         }
 
@@ -274,7 +274,7 @@ describe('Role-Based Access Control', () => {
 
         const mockGuestSession = {
           sessionId: 'guest_123',
-          isGuest: true,
+          isGuest: true as const,
           tier: 'GUEST' as UserTier
         }
 
@@ -294,7 +294,7 @@ describe('Role-Based Access Control', () => {
       it('should allow access to public routes for all users', async () => {
         const { canAccessRoute } = await import('@/auth/permissions')
 
-        const guestSession = { sessionId: 'guest_123', isGuest: true, tier: 'GUEST' as UserTier }
+        const guestSession = { sessionId: 'guest_123', isGuest: true as const, tier: 'GUEST' as UserTier }
         const userSession = { userId: 'user123', tier: 'REGISTERED' as UserTier }
 
         expect(canAccessRoute('/public', guestSession)).toBe(true)
@@ -305,7 +305,7 @@ describe('Role-Based Access Control', () => {
       it('should restrict authenticated routes to logged-in users', async () => {
         const { canAccessRoute } = await import('@/auth/permissions')
 
-        const guestSession = { sessionId: 'guest_123', isGuest: true, tier: 'GUEST' as UserTier }
+        const guestSession = { sessionId: 'guest_123', isGuest: true as const, tier: 'GUEST' as UserTier }
         const userSession = { userId: 'user123', tier: 'REGISTERED' as UserTier }
 
         expect(canAccessRoute('/dashboard', guestSession)).toBe(false)

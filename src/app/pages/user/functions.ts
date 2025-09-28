@@ -14,6 +14,7 @@ import { db } from "@/db";
 import { env } from "cloudflare:workers";
 import { updateLastLogin, updateLastActivity } from "@/auth/user-utils";
 import { createSessionData, updateSessionActivity, isSessionExpired, type SessionData } from "@/auth/session-utils";
+import { createGuestSession as createGuestSessionData, isGuestSession, validateGuestSession, upgradeGuestToRegistered, type GuestSessionData } from "@/auth/guest-session-utils";
 
 function getWebAuthnConfig(request: Request) {
   const rpID = env.WEBAUTHN_RP_ID ?? new URL(request.url).hostname;
@@ -87,8 +88,6 @@ export async function finishPasskeyRegistration(
     return false;
   }
 
-  await sessions.save(response.headers, { challenge: null });
-
   const user = await db.user.create({
     data: {
       username,
@@ -104,6 +103,25 @@ export async function finishPasskeyRegistration(
       publicKey: verification.registrationInfo.credential.publicKey,
       counter: verification.registrationInfo.credential.counter,
     },
+  });
+
+  // Update login timestamp
+  await updateLastLogin(user.id);
+
+  // Check if there's an existing guest session to upgrade
+  let sessionData: SessionData;
+  if (isGuestSession(session)) {
+    // Upgrade guest session to registered user session
+    sessionData = upgradeGuestToRegistered(session, user.id, false);
+  } else {
+    // Create new session for registered user
+    sessionData = createSessionData(user.id, false);
+  }
+
+  // Save the new authenticated session
+  await sessions.save(response.headers, {
+    ...sessionData,
+    challenge: null,
   });
 
   return true;
@@ -170,8 +188,16 @@ export async function finishPasskeyLogin(login: AuthenticationResponseJSON, reme
   await updateLastLogin(user.id);
   await updateLastActivity(user.id);
 
-  // Create enhanced session data with remember me support
-  const sessionData = createSessionData(user.id, rememberMe);
+  // Check if there's an existing guest session to upgrade
+  let sessionData: SessionData;
+  if (isGuestSession(session)) {
+    // Upgrade guest session to registered user session
+    sessionData = upgradeGuestToRegistered(session, user.id, rememberMe);
+  } else {
+    // Create enhanced session data with remember me support
+    sessionData = createSessionData(user.id, rememberMe);
+  }
+
   await sessions.save(response.headers, {
     ...sessionData,
     challenge: null,
@@ -181,13 +207,50 @@ export async function finishPasskeyLogin(login: AuthenticationResponseJSON, reme
 }
 
 /**
+ * Creates a new guest session for unauthenticated users
+ */
+export async function createGuestSession(): Promise<GuestSessionData> {
+  const { response } = requestInfo;
+
+  const guestSessionData = createGuestSessionData();
+  await sessions.save(response.headers, guestSessionData);
+
+  return guestSessionData;
+}
+
+/**
  * Validates and refreshes an existing session
  */
 export async function validateSession() {
   const { request, response } = requestInfo;
   const session = await sessions.load(request);
 
-  if (!session || !session.userId) {
+  if (!session) {
+    return null;
+  }
+
+  // Handle guest sessions
+  if (isGuestSession(session)) {
+    const validatedGuestSession = validateGuestSession(session);
+
+    if (!validatedGuestSession) {
+      // Guest session expired, clear it
+      await sessions.save(response.headers, {});
+      return null;
+    }
+
+    // Save updated guest session
+    await sessions.save(response.headers, validatedGuestSession);
+
+    return {
+      sessionId: validatedGuestSession.sessionId,
+      isGuest: true,
+      tier: 'GUEST'
+    };
+  }
+
+  // Handle authenticated user sessions
+  if (!session.userId) {
     return null;
   }
 

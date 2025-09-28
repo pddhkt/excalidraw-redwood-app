@@ -44,13 +44,17 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.13.3",
     "@cloudflare/workers-types": "4.20250921.0",
+    "@testing-library/jest-dom": "^6.4.8",
+    "@testing-library/react": "^16.0.1",
     "@types/node": "22.14.0",
     "@types/react": "19.1.2",
     "@types/react-dom": "19.1.2",
+    "happy-dom": "^15.7.4",
     "prisma": "6.8.2",
     "typescript": "5.8.3",
     "vibe-rules": "0.2.31",
     "vite": "7.1.6",
+    "vitest": "^2.1.1",
     "wrangler": "4.38.0"
   },
   "pnpm": {

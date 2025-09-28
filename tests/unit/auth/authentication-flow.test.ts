@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { finishPasskeyLogin, validateSession, logout } from '@/app/pages/user/functions'
+import type { AuthenticationResponseJSON } from '@simplewebauthn/server'
 
 // Mock the dependencies
 vi.mock('@/session/store', () => ({
@@ -80,7 +81,7 @@ describe('Authentication Flow with Remember Me', () => {
         authenticationInfo: { newCounter: 2 }
       })
 
-      const mockLogin = {
+      const mockLogin: AuthenticationResponseJSON = {
         id: 'cred123',
         rawId: 'cred123',
         response: {
@@ -140,7 +141,7 @@ describe('Authentication Flow with Remember Me', () => {
         authenticationInfo: { newCounter: 2 }
       })
 
-      const mockLogin = {
+      const mockLogin: AuthenticationResponseJSON = {
         id: 'cred123',
         rawId: 'cred123',
         response: {

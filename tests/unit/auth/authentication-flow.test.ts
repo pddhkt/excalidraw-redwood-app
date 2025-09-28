@@ -40,6 +40,13 @@ vi.mock('@/auth/user-utils', () => ({
   updateLastActivity: vi.fn()
 }))
 
+vi.mock('cloudflare:workers', () => ({
+  env: {
+    WEBAUTHN_RP_ID: 'test.example.com',
+    WEBAUTHN_APP_NAME: 'Test App'
+  }
+}))
+
 describe('Authentication Flow with Remember Me', () => {
   beforeEach(() => {
     vi.clearAllMocks()

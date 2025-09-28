@@ -58,7 +58,7 @@ describe('Guest Authentication Flow', () => {
 
       const mockGuestSession = {
         sessionId: 'guest_abc123',
-        isGuest: true,
+        isGuest: true as const,
         createdAt: new Date('2024-01-01T12:00:00Z'),
         expiresAt: new Date('2024-01-01T14:00:00Z'),
         lastActivity: new Date('2024-01-01T12:00:00Z'),
@@ -82,7 +82,7 @@ describe('Guest Authentication Flow', () => {
 
       const expiredGuestSession = {
         sessionId: 'guest_abc123',
-        isGuest: true,
+        isGuest: true as const,
         createdAt: new Date('2024-01-01T12:00:00Z'),
         expiresAt: new Date('2024-01-01T14:00:00Z'),
         lastActivity: new Date('2024-01-01T12:00:00Z'),
@@ -102,7 +102,7 @@ describe('Guest Authentication Flow', () => {
 
       const guestSession = {
         sessionId: 'guest_abc123',
-        isGuest: true,
+        isGuest: true as const,
         createdAt: new Date('2024-01-01T12:00:00Z'),
         expiresAt: new Date('2024-01-01T14:00:00Z'),
         lastActivity: new Date('2024-01-01T12:00:00Z'),
@@ -129,7 +129,7 @@ describe('Guest Authentication Flow', () => {
 
       const existingGuestSession = {
         sessionId: 'guest_abc123',
-        isGuest: true,
+        isGuest: true as const,
         createdAt: new Date('2024-01-01T12:00:00Z'),
         expiresAt: new Date('2024-01-01T14:00:00Z'),
         lastActivity: new Date('2024-01-01T12:00:00Z'),
@@ -155,7 +155,7 @@ describe('Guest Authentication Flow', () => {
 
       const existingGuestSession = {
         sessionId: 'guest_abc123',
-        isGuest: true,
+        isGuest: true as const,
         createdAt: new Date('2024-01-01T12:00:00Z'),
         expiresAt: new Date('2024-01-01T14:00:00Z'),
         lastActivity: new Date('2024-01-01T12:00:00Z'),

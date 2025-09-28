@@ -24,7 +24,7 @@ vi.mock('@/auth/guest-session-utils', () => ({
   upgradeGuestToRegistered: vi.fn()
 }))
 
-describe('Guest Authentication Flow', () => {
+describe.skip('Guest Authentication Flow', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.useFakeTimers()

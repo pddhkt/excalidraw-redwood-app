@@ -1,5 +1,7 @@
 import { db } from '@/db'
-import type { UserTier } from '@generated/prisma'
+
+// Define UserTier type for tests when Prisma is not available
+export type UserTier = 'GUEST' | 'REGISTERED' | 'TEAM_MEMBER'
 
 /**
  * Updates the lastActivity timestamp for a user

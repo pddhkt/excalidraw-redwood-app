@@ -1,5 +1,5 @@
 import { db } from '@/db'
-import type { UserTier } from '@/generated/prisma'
+import type { UserTier } from '../generated/prisma'
 
 /**
  * Updates the lastActivity timestamp for a user

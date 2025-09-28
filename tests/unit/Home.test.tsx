@@ -10,7 +10,11 @@ const createMockRequestInfo = (user: any = null): RequestInfo => ({
   headers: new Headers(),
   rw: {} as any,
   response: new Response(),
-  cf: {},
+  cf: {
+    waitUntil: () => {},
+    passThroughOnException: () => {},
+    props: {}
+  } as any,
   isAction: false,
   ctx: {
     user,

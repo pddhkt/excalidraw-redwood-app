@@ -33,7 +33,7 @@ describe('Alert Component', () => {
   it('should apply destructive variant styling', () => {
     render(<Alert variant="destructive" data-testid="alert">Error alert</Alert>)
     const alert = screen.getByTestId('alert')
-    expect(alert).toHaveClass('border-destructive')
+    expect(alert).toHaveClass('border-destructive/50')
     expect(alert).toHaveClass('text-destructive')
   })
 
@@ -66,7 +66,7 @@ describe('Alert Component', () => {
   it('should support success variant', () => {
     render(<Alert variant="success" data-testid="alert">Success message</Alert>)
     const alert = screen.getByTestId('alert')
-    expect(alert).toHaveClass('border-green-500')
+    expect(alert).toHaveClass('border-green-500/50')
     expect(alert).toHaveClass('text-green-600')
   })
 

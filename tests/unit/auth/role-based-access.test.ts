@@ -282,11 +282,11 @@ describe('Role-Based Access Control', () => {
         expect(permissions).toEqual(['view_public_content', 'view_public_drawings'])
       })
 
-      it('should return empty array for null session', async () => {
+      it('should return guest permissions for null session', async () => {
         const { getUserPermissions } = await import('@/auth/permissions')
 
         const permissions = getUserPermissions(null)
-        expect(permissions).toEqual([])
+        expect(permissions).toEqual(['view_public_content', 'view_public_drawings'])
       })
     })
 

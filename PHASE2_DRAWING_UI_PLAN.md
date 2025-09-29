@@ -4,9 +4,252 @@
 
 Phase 2 focuses on building the core UI for personal drawing management with a modern, responsive interface using Tailwind CSS and shadcn/ui-inspired components. This phase establishes the foundation for users to authenticate via passkeys and manage their personal drawing library.
 
+**Methodology:** Test-Driven Development (TDD) with Vitest + Playwright
 **Scope:** Authentication UI, Drawing Database, Personal Library Management (View Only)
 **Duration:** 4 weeks estimated
 **Dependencies:** Phase 1 Authentication System (Completed)
+**Development Environment:** Mobile-first with GitHub Actions CI/CD
+
+---
+
+## 2.0 TDD Methodology & Testing Strategy
+
+### Test-Driven Development Approach
+
+**Core Principle:** Write tests first, then implement code to pass the tests.
+
+#### TDD Cycle for Each Feature:
+1. **RED** - Write failing test(s) that define desired behavior
+2. **GREEN** - Write minimal code to make tests pass
+3. **REFACTOR** - Improve code while keeping tests green
+
+### Testing Stack
+
+#### Unit Testing (Vitest)
+```typescript
+// Example: Button component test
+// tests/unit/components/ui/Button.test.tsx
+import { describe, it, expect } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import { Button } from '@/components/ui/Button'
+
+describe('Button Component', () => {
+  it('should render with correct variant classes', () => {
+    render(<Button variant="primary">Click me</Button>)
+    const button = screen.getByRole('button')
+    expect(button).toHaveClass('bg-primary')
+  })
+})
+```
+
+#### Integration Testing (Vitest + Testing Library)
+```typescript
+// Example: Session context test
+// tests/integration/SessionContext.test.tsx
+describe('SessionContext', () => {
+  it('should provide user data after login', async () => {
+    // Test implementation
+  })
+})
+```
+
+#### E2E Testing (Playwright)
+```typescript
+// Example: Login flow test
+// tests/e2e/auth.spec.ts
+import { test, expect } from '@playwright/test'
+
+test.describe('Authentication Flow', () => {
+  test('user can login with passkey', async ({ page }) => {
+    await page.goto('/login')
+    await page.fill('[data-testid="username-input"]', 'testuser')
+    await page.click('[data-testid="login-button"]')
+    await expect(page).toHaveURL('/dashboard')
+  })
+})
+```
+
+### Mobile Development Workflow
+
+Since development is on mobile, all tests run via GitHub Actions:
+
+1. **Local Development:** Write code on mobile
+2. **Push to Branch:** Commit and push changes
+3. **Automated Testing:** GitHub Actions runs all tests
+4. **Feedback Loop:** View results in GitHub interface
+
+### GitHub Actions CI/CD Pipeline
+
+**.github/workflows/test-and-deploy.yml:**
+```yaml
+name: Test and Deploy
+
+on:
+  push:
+    branches: [staging, main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run type checking
+        run: npm run types
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+      - name: Run integration tests
+        run: npm run test:integration
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Run E2E tests
+        run: npm run test:e2e
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results
+          path: |
+            test-results/
+            coverage/
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Deploy to Cloudflare
+        run: npm run release
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+```
+
+### Test Organization
+
+```
+tests/
+├── unit/                          # Vitest unit tests
+│   ├── components/
+│   │   ├── ui/
+│   │   │   ├── Button.test.tsx
+│   │   │   ├── Card.test.tsx
+│   │   │   └── Input.test.tsx
+│   │   └── drawing/
+│   │       ├── DrawingCard.test.tsx
+│   │       └── DrawingGrid.test.tsx
+│   ├── db/
+│   │   └── drawing/
+│   │       └── functions.test.ts
+│   └── utils/
+│       └── cn.test.ts
+├── integration/                   # Vitest integration tests
+│   ├── SessionContext.test.tsx
+│   ├── auth-flow.test.ts
+│   └── drawing-crud.test.ts
+└── e2e/                          # Playwright E2E tests
+    ├── auth.spec.ts
+    ├── dashboard.spec.ts
+    ├── library.spec.ts
+    └── guest-flow.spec.ts
+```
+
+### Package.json Test Scripts
+
+```json
+{
+  "scripts": {
+    // Existing scripts...
+    "test": "vitest",
+    "test:unit": "vitest run --dir tests/unit",
+    "test:integration": "vitest run --dir tests/integration",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:all": "npm run test:unit && npm run test:integration && npm run test:e2e",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest run --coverage"
+  }
+}
+```
+
+### TDD Implementation Strategy
+
+#### For Each Component:
+1. Write test file first defining expected behavior
+2. Create component with minimal implementation
+3. Run tests locally (basic syntax check)
+4. Push to GitHub for full test run
+5. Iterate based on test results
+
+#### Example TDD Flow for DrawingCard:
+
+**Step 1: Write Test First**
+```typescript
+// tests/unit/components/drawing/DrawingCard.test.tsx
+describe('DrawingCard', () => {
+  const mockDrawing = {
+    id: '1',
+    title: 'My Drawing',
+    updatedAt: new Date('2024-01-01'),
+    thumbnail: 'base64...',
+    isPublic: false
+  }
+
+  it('should display drawing title', () => {
+    render(<DrawingCard drawing={mockDrawing} />)
+    expect(screen.getByText('My Drawing')).toBeInTheDocument()
+  })
+
+  it('should show private badge for private drawings', () => {
+    render(<DrawingCard drawing={mockDrawing} />)
+    expect(screen.getByText('Private')).toBeInTheDocument()
+  })
+
+  it('should format date correctly', () => {
+    render(<DrawingCard drawing={mockDrawing} />)
+    expect(screen.getByText(/Jan 1, 2024/)).toBeInTheDocument()
+  })
+})
+```
+
+**Step 2: Create Minimal Component**
+```typescript
+// src/components/drawing/DrawingCard.tsx
+export function DrawingCard({ drawing }) {
+  // Minimal implementation to pass tests
+}
+```
+
+**Step 3: Push and Iterate**
+- Push to GitHub
+- View test results in Actions
+- Fix failures
+- Repeat until all tests pass
+
+### Test Coverage Goals
+
+- **Unit Tests:** 80% coverage minimum
+- **Integration Tests:** All critical paths
+- **E2E Tests:** Happy paths for each user flow
+- **Accessibility Tests:** WCAG 2.1 Level AA compliance
 
 ---
 
@@ -518,11 +761,20 @@ src/
     // Existing
     "typescript": "^5.8.3",
     "vite": "^7.1.6",
+    "vitest": "^2.1.1",           // Already in package.json
+    "@testing-library/react": "^16.0.1",  // Already in package.json
+    "@testing-library/jest-dom": "^6.4.8", // Already in package.json
 
     // New for Phase 2
     "tailwindcss": "^3.4.0",
     "autoprefixer": "^10.4.16",
-    "postcss": "^8.4.32"
+    "postcss": "^8.4.32",
+
+    // Testing additions
+    "@playwright/test": "^1.40.0",
+    "@testing-library/user-event": "^14.5.0",
+    "@vitest/coverage-v8": "^2.1.1",
+    "jsdom": "^24.0.0"           // For Vitest DOM testing
   }
 }
 ```
@@ -537,6 +789,60 @@ module.exports = {
     autoprefixer: {},
   },
 }
+```
+
+**vitest.config.ts:**
+```typescript
+import { defineConfig } from 'vitest/config'
+import react from '@vitejs/plugin-react'
+import path from 'path'
+
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: './tests/setup.ts',
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      exclude: ['node_modules/', 'tests/', '*.config.*']
+    }
+  },
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    }
+  }
+})
+```
+
+**playwright.config.ts:**
+```typescript
+import { defineConfig, devices } from '@playwright/test'
+
+export default defineConfig({
+  testDir: './tests/e2e',
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? 1 : undefined,
+  reporter: 'html',
+  use: {
+    baseURL: 'http://localhost:5173',
+    trace: 'on-first-retry',
+  },
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'Mobile Chrome', use: { ...devices['Pixel 5'] } },
+    { name: 'Mobile Safari', use: { ...devices['iPhone 12'] } },
+  ],
+  webServer: {
+    command: 'npm run dev',
+    url: 'http://localhost:5173',
+    reuseExistingServer: !process.env.CI,
+  },
+})
 ```
 
 **tsconfig.json paths:**
@@ -555,28 +861,75 @@ module.exports = {
 
 ---
 
-## 2.9 Implementation Timeline
+## 2.9 TDD Implementation Timeline
 
-### Week 1: Foundation Setup
-- [ ] Day 1-2: Database schema creation and migration
-- [ ] Day 3-4: Tailwind CSS setup and theme configuration
-- [ ] Day 5: Base UI components (Button, Card, Input)
+### Week 1: Foundation Setup (TDD First)
+- [ ] Day 1: Setup testing infrastructure
+  - Configure Vitest, Playwright, and GitHub Actions
+  - Create test directory structure
+  - Write first failing tests for Button component
+- [ ] Day 2: Database schema & tests
+  - Write tests for Drawing model operations
+  - Create Drawing model and migration
+  - Push to GitHub for CI validation
+- [ ] Day 3-4: Tailwind CSS & Component tests
+  - Write tests for base UI components (Button, Card, Input)
+  - Setup Tailwind CSS configuration
+  - Implement components to pass tests
+- [ ] Day 5: Test review and CI refinement
+  - Ensure all tests pass in GitHub Actions
+  - Adjust CI pipeline if needed
 
-### Week 2: Authentication & Components
-- [ ] Day 1-2: Enhanced Login page with Tailwind styling
-- [ ] Day 3-4: Session context and provider
-- [ ] Day 5: Navigation component and layout
+### Week 2: Authentication & Components (Test-First)
+- [ ] Day 1: Login page tests
+  - Write E2E tests for login flow
+  - Write unit tests for Login component
+- [ ] Day 2: Login implementation
+  - Implement Login page to pass tests
+  - Push for CI validation
+- [ ] Day 3: Session context tests
+  - Write integration tests for SessionContext
+  - Test session persistence and auth guards
+- [ ] Day 4: Session implementation
+  - Implement SessionContext to pass tests
+  - Test protected route behavior
+- [ ] Day 5: Navigation tests and implementation
+  - Write tests for Navigation component
+  - Implement and validate in CI
 
-### Week 3: Core Pages
-- [ ] Day 1-2: Dashboard page implementation
-- [ ] Day 3-4: Library page with grid/list views
-- [ ] Day 5: Drawing card components and empty states
+### Week 3: Core Pages (TDD Cycle)
+- [ ] Day 1: Dashboard tests
+  - Write E2E test for dashboard flow
+  - Unit tests for dashboard components
+- [ ] Day 2: Dashboard implementation
+  - Build Dashboard to pass all tests
+  - Validate with GitHub Actions
+- [ ] Day 3: Library page tests
+  - E2E tests for library browsing
+  - Unit tests for DrawingCard, DrawingGrid
+- [ ] Day 4: Library implementation
+  - Implement Library page and components
+  - Ensure tests pass in CI
+- [ ] Day 5: Integration testing
+  - Full user flow E2E tests
+  - Cross-browser testing via Playwright
 
-### Week 4: Polish & Testing
-- [ ] Day 1-2: Responsive design adjustments
-- [ ] Day 3: Loading states and error handling
-- [ ] Day 4: Integration testing
-- [ ] Day 5: Documentation and deployment
+### Week 4: Polish & Production Readiness
+- [ ] Day 1: Mobile responsiveness tests
+  - Add Playwright mobile device tests
+  - Fix any responsive issues
+- [ ] Day 2: Performance and accessibility
+  - Add performance metrics to tests
+  - Implement accessibility tests
+- [ ] Day 3: Error handling and edge cases
+  - Write tests for error scenarios
+  - Implement proper error boundaries
+- [ ] Day 4: Final test coverage review
+  - Achieve 80%+ unit test coverage
+  - All E2E happy paths covered
+- [ ] Day 5: Production deployment
+  - Final CI/CD pipeline check
+  - Deploy to Cloudflare Workers
 
 ---
 
@@ -613,19 +966,87 @@ module.exports = {
 
 ---
 
-## 2.11 Risk Mitigation
+## 2.11 Mobile Development Considerations
+
+### Development Workflow on Mobile
+
+Since development is happening on a mobile device (Termux), the workflow is optimized for:
+
+1. **Code Writing:**
+   - Use mobile-friendly editors
+   - Write code in small, testable chunks
+   - Frequent commits to save progress
+
+2. **Testing Strategy:**
+   - **No local test execution** - All tests run in GitHub Actions
+   - Push to feature branches frequently for test feedback
+   - Use GitHub mobile app to monitor CI/CD results
+
+3. **Branch Strategy:**
+   ```
+   main (production)
+   ├── staging (integration testing)
+   └── feature/* (individual features with TDD)
+   ```
+
+4. **Daily Workflow:**
+   ```bash
+   # Morning: Pull latest changes
+   git pull origin staging
+
+   # Create feature branch
+   git checkout -b feature/component-name
+
+   # Write test first
+   vim tests/unit/ComponentName.test.tsx
+
+   # Commit and push test
+   git add . && git commit -m "test: add ComponentName tests"
+   git push origin feature/component-name
+
+   # Check GitHub Actions for test results
+   # Write implementation
+   # Push again for validation
+   ```
+
+5. **GitHub Mobile App Usage:**
+   - Monitor workflow runs
+   - Review test results
+   - Approve PRs
+   - Check deployment status
+
+### CI/CD Optimization for Mobile Dev
+
+1. **Fast Feedback Loop:**
+   - Tests run automatically on push
+   - Results available in 2-5 minutes
+   - Email/push notifications for failures
+
+2. **Branch Protection Rules:**
+   - Require tests to pass before merge
+   - Auto-merge when all checks pass
+   - Prevent direct pushes to main
+
+3. **Test Result Artifacts:**
+   - HTML reports accessible via GitHub
+   - Coverage reports for code review
+   - Screenshots from failed E2E tests
+
+## 2.12 Risk Mitigation
 
 ### Identified Risks
 1. **Passkey browser compatibility** - Provide fallback messaging for unsupported browsers
 2. **Drawing data size** - Implement pagination and lazy loading
 3. **Session management complexity** - Use proven patterns from Phase 1
 4. **Styling consistency** - Establish component guidelines early
+5. **Mobile development limitations** - Rely on CI/CD for testing and validation
 
 ### Mitigation Strategies
 - Progressive enhancement for older browsers
 - Database query optimization from day 1
-- Extensive testing on different devices
+- Extensive testing on different devices via Playwright
 - Code reviews for component consistency
+- Robust GitHub Actions pipeline for mobile development
 
 ---
 
@@ -653,12 +1074,37 @@ module.exports = {
 
 ## 📝 Notes for Developers
 
-1. **Component Development**: Follow the shadcn/ui pattern - components should be copy-pasteable and customizable
-2. **Styling**: Use Tailwind utility classes, avoid inline styles except for dynamic values
-3. **Type Safety**: Every component should have proper TypeScript interfaces
-4. **Accessibility**: Include proper ARIA labels, keyboard navigation, and focus management
-5. **Testing**: Write tests for critical user flows (login, drawing CRUD)
-6. **Documentation**: Comment complex logic, document API functions
+### TDD Best Practices
+1. **Red-Green-Refactor**: Always follow the TDD cycle strictly
+2. **Test First**: Never write implementation code without a failing test
+3. **Minimal Implementation**: Write just enough code to pass the test
+4. **Test Names**: Use descriptive test names that explain expected behavior
+5. **One Feature Per Test**: Each test should validate a single piece of functionality
+
+### Component Development
+1. **shadcn/ui Pattern**: Components should be copy-pasteable and customizable
+2. **Test-Driven Components**: Write tests before component implementation
+3. **Props Interface**: Define TypeScript interfaces first, then tests, then implementation
+4. **Component Composition**: Prefer composition over complex single components
+
+### Mobile Development Guidelines
+1. **Small Commits**: Commit frequently with descriptive messages
+2. **GitHub Actions**: Rely on CI for all testing and validation
+3. **Feature Branches**: Create branches for each component/feature
+4. **Mobile-First**: Test responsive design through Playwright mobile devices
+
+### Technical Standards
+1. **Styling**: Use Tailwind utility classes, avoid inline styles except for dynamic values
+2. **Type Safety**: Every component should have proper TypeScript interfaces
+3. **Accessibility**: Include proper ARIA labels, keyboard navigation, and focus management
+4. **Documentation**: Comment complex logic, document API functions
+5. **Test Coverage**: Aim for 80%+ unit test coverage
+
+### GitHub Actions Workflow
+1. **Push Early**: Push test files first to validate test setup
+2. **Monitor Results**: Use GitHub mobile app to check workflow status
+3. **Fix Fast**: Address test failures immediately
+4. **Merge Often**: Don't let feature branches get stale
 
 ---
 

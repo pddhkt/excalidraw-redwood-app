@@ -9,6 +9,7 @@ const mockDrawing = {
   id: 'drawing-1',
   title: 'My Test Drawing',
   description: 'A beautiful test drawing',
+  content: '{"type":"excalidraw","version":2,"source":"test","elements":[]}',
   thumbnail: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
   isPublic: false,
   createdAt: mockDate,
@@ -36,7 +37,7 @@ describe('DrawingCard Component', () => {
   })
 
   it('should not render description when not provided', () => {
-    const drawingWithoutDescription = { ...mockDrawing, description: undefined }
+    const drawingWithoutDescription = { ...mockDrawing, description: null }
     render(<DrawingCard drawing={drawingWithoutDescription} />)
     expect(screen.queryByText('A beautiful test drawing')).not.toBeInTheDocument()
   })

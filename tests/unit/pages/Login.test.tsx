@@ -145,7 +145,18 @@ describe('Login Component', () => {
     const mockStartAuthentication = vi.mocked(startAuthentication)
 
     mockStartPasskeyLogin.mockResolvedValue({ challenge: 'test-challenge' })
-    mockStartAuthentication.mockResolvedValue({ id: 'test-id' })
+    mockStartAuthentication.mockResolvedValue({
+      id: 'test-id',
+      rawId: 'test-raw-id',
+      response: {
+        clientDataJSON: 'test-client-data',
+        authenticatorData: 'test-auth-data',
+        signature: 'test-signature',
+        userHandle: null,
+      },
+      clientExtensionResults: {},
+      type: 'public-key',
+    })
     mockFinishPasskeyLogin.mockResolvedValue(false)
 
     render(<Login />)
@@ -168,7 +179,18 @@ describe('Login Component', () => {
     const mockStartAuthentication = vi.mocked(startAuthentication)
 
     mockStartPasskeyLogin.mockResolvedValue({ challenge: 'test-challenge' })
-    mockStartAuthentication.mockResolvedValue({ id: 'test-id' })
+    mockStartAuthentication.mockResolvedValue({
+      id: 'test-id',
+      rawId: 'test-raw-id',
+      response: {
+        clientDataJSON: 'test-client-data',
+        authenticatorData: 'test-auth-data',
+        signature: 'test-signature',
+        userHandle: null,
+      },
+      clientExtensionResults: {},
+      type: 'public-key',
+    })
     mockFinishPasskeyLogin.mockResolvedValue(true)
 
     render(<Login />)

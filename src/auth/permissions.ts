@@ -85,7 +85,7 @@ export function getPermissionsForTier(tier: UserTier): Permission[] {
  */
 export function getUserPermissions(session: SessionData): Permission[] {
   if (!session) {
-    return []
+    return getPermissionsForTier('GUEST')
   }
 
   if ('isGuest' in session && session.isGuest === true) {

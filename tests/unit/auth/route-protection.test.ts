@@ -100,7 +100,7 @@ describe('Route Protection System', () => {
         const { getRedirectPath } = await import('@/auth/route-config')
 
         const result = getRedirectPath('/dashboard', null)
-        expect(result).toBe('/login?redirect=/dashboard')
+        expect(result).toBe('/login?redirect=%2Fdashboard')
       })
 
       it('should return upgrade path for insufficient tier', async () => {
@@ -141,12 +141,12 @@ describe('Route Protection System', () => {
 
         const guestResult = await authGuard('/dashboard', { sessionId: 'guest_123', isGuest: true as const, tier: 'GUEST' as UserTier })
         expect(guestResult.canAccess).toBe(false)
-        expect(guestResult.redirectTo).toBe('/login?redirect=/dashboard')
+        expect(guestResult.redirectTo).toBe('/login?redirect=%2Fdashboard')
         expect(guestResult.reason).toBe('authentication_required')
 
         const nullResult = await authGuard('/dashboard', null)
         expect(nullResult.canAccess).toBe(false)
-        expect(nullResult.redirectTo).toBe('/login?redirect=/dashboard')
+        expect(nullResult.redirectTo).toBe('/login?redirect=%2Fdashboard')
       })
 
       it('should block insufficient tier access', async () => {
@@ -221,7 +221,7 @@ describe('Route Protection System', () => {
           tier: 'GUEST'
         })
         expect(guestProtected.allowed).toBe(false)
-        expect(guestProtected.redirectTo).toBe('/login?redirect=/dashboard')
+        expect(guestProtected.redirectTo).toBe('/login?redirect=%2Fdashboard')
 
         // Test registered user accessing appropriate route
         const userDashboard = await validateRouteAccess('/dashboard', {
@@ -252,7 +252,7 @@ describe('Route Protection System', () => {
         // Test null session
         const nullSession = await validateRouteAccess('/dashboard', null)
         expect(nullSession.allowed).toBe(false)
-        expect(nullSession.redirectTo).toBe('/login?redirect=/dashboard')
+        expect(nullSession.redirectTo).toBe('/login?redirect=%2Fdashboard')
 
         // Test malformed session
         const malformedSession = await validateRouteAccess('/dashboard', {} as any)

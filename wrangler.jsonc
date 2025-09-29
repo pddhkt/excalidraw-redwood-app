@@ -1,6 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "__change_me__",
+  "name": "excalidraw-redwood-app",
+  "account_id": "9abdd4944b6a8642bc5a9667524cceaa",
   "main": "src/worker.tsx",
   "compatibility_date": "2025-08-21",
   "compatibility_flags": ["nodejs_compat"],
@@ -19,7 +20,8 @@
     ]
   },
   "vars": {
-    "WEBAUTHN_APP_NAME": "__change_me__"
+    "WEBAUTHN_APP_NAME": "Excalidraw Redwood App",
+    "WEBAUTHN_RP_ID": "excalidraw-redwood-app.pages.dev"
   },
   "migrations": [
     {
@@ -30,8 +32,8 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "__change_me__",
-      "database_id": "__change_me__"
+      "database_name": "excalidraw-app-db",
+      "database_id": "temp-id-will-be-replaced"
     }
   ]
 }

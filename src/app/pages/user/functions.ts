@@ -16,6 +16,7 @@ import { updateLastLogin, updateLastActivity } from "@/auth/user-utils";
 import { createSessionData, updateSessionActivity, isSessionExpired, type SessionData } from "@/auth/session-utils";
 import { createGuestSession as createGuestSessionData, isGuestSession, validateGuestSession, upgradeGuestToRegistered, type GuestSessionData } from "@/auth/guest-session-utils";
 import { sessionHasPermission, getUserPermissions, type Permission } from "@/auth/permissions";
+import type { UserTier } from "@generated/prisma";
 
 function getWebAuthnConfig(request: Request) {
   const rpID = env.WEBAUTHN_RP_ID ?? new URL(request.url).hostname;
@@ -256,7 +257,7 @@ export async function validateSession() {
     return {
       sessionId: validatedGuestSession.sessionId,
       isGuest: true,
-      tier: 'GUEST'
+      tier: 'GUEST' as const
     };
   }
 
@@ -341,7 +342,7 @@ export async function getCurrentPermissions() {
 /**
  * Get current user's tier
  */
-export async function getCurrentTier() {
+export async function getCurrentTier(): Promise<UserTier> {
   const session = await validateSession();
   if (!session) return 'GUEST';
   return session.tier || 'GUEST';

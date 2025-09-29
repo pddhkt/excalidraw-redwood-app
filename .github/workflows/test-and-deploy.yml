@@ -83,9 +83,18 @@ jobs:
           # Try to create the database, ignore if it already exists
           pnpx wrangler d1 create excalidraw-app-db || echo "Database may already exist"
           # Get database ID and update wrangler.jsonc
-          DB_ID=$(pnpx wrangler d1 list | grep excalidraw-app-db | awk '{print $2}' | head -1)
-          if [ ! -z "$DB_ID" ]; then
+          echo "Listing databases..."
+          pnpx wrangler d1 list
+          DB_ID=$(pnpx wrangler d1 list --output json | jq -r '.[] | select(.name == "excalidraw-app-db") | .uuid' | head -1)
+          echo "Found database ID: $DB_ID"
+          if [ ! -z "$DB_ID" ] && [ "$DB_ID" != "null" ]; then
+            echo "Updating wrangler.jsonc with database ID: $DB_ID"
             sed -i "s/temp-id-will-be-replaced/$DB_ID/g" wrangler.jsonc
+            echo "Updated wrangler.jsonc:"
+            cat wrangler.jsonc
+          else
+            echo "Database ID not found or is null"
+            exit 1
           fi
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

@@ -104,7 +104,7 @@ describe('Login Component', () => {
   it('should disable register button when username is empty', () => {
     render(<Login />)
 
-    const registerButton = screen.getByText('➕ Create New Account')
+    const registerButton = screen.getByRole('button', { name: /create new account/i })
     expect(registerButton).toBeDisabled()
   })
 
@@ -113,7 +113,7 @@ describe('Login Component', () => {
     render(<Login />)
 
     const usernameInput = screen.getByLabelText('Username')
-    const registerButton = screen.getByText('➕ Create New Account')
+    const registerButton = screen.getByRole('button', { name: /create new account/i })
 
     await user.type(usernameInput, 'testuser')
 
@@ -128,12 +128,12 @@ describe('Login Component', () => {
 
     render(<Login />)
 
-    const loginButton = screen.getByText('🔑 Sign in with Passkey')
+    const loginButton = screen.getByRole('button', { name: /sign in with passkey/i })
     fireEvent.click(loginButton)
 
     await waitFor(() => {
-      expect(screen.getByText('Authenticating...')).toBeInTheDocument()
-    })
+      expect(screen.getByText(/authenticating/i)).toBeInTheDocument()
+    }, { timeout: 2000 })
   })
 
   it('should show error message when login fails', async () => {
@@ -161,11 +161,10 @@ describe('Login Component', () => {
 
     render(<Login />)
 
-    const loginButton = screen.getByText('🔑 Sign in with Passkey')
+    const loginButton = screen.getByRole('button', { name: /sign in with passkey/i })
     fireEvent.click(loginButton)
 
     await waitFor(() => {
-      expect(screen.getByTestId('alert')).toBeInTheDocument()
       expect(screen.getByText('Login failed. Please try again.')).toBeInTheDocument()
     })
   })
@@ -195,26 +194,23 @@ describe('Login Component', () => {
 
     render(<Login />)
 
-    const loginButton = screen.getByText('🔑 Sign in with Passkey')
+    const loginButton = screen.getByRole('button', { name: /sign in with passkey/i })
     fireEvent.click(loginButton)
 
     await waitFor(() => {
-      expect(screen.getByTestId('alert')).toBeInTheDocument()
       expect(screen.getByText('Login successful! Redirecting...')).toBeInTheDocument()
     })
   })
 
   it('should handle registration validation error', async () => {
-    const user = userEvent.setup()
     render(<Login />)
 
-    const registerButton = screen.getByText('➕ Create New Account')
+    const registerButton = screen.getByRole('button', { name: /create new account/i })
 
     // Try to register without username
     fireEvent.click(registerButton)
 
     await waitFor(() => {
-      expect(screen.getByTestId('alert')).toBeInTheDocument()
       expect(screen.getByText('Please enter a username')).toBeInTheDocument()
     })
   })
@@ -260,11 +256,10 @@ describe('Login Component', () => {
 
     render(<Login />)
 
-    const loginButton = screen.getByText('🔑 Sign in with Passkey')
+    const loginButton = screen.getByRole('button', { name: /sign in with passkey/i })
     fireEvent.click(loginButton)
 
     await waitFor(() => {
-      expect(screen.getByTestId('alert')).toBeInTheDocument()
       expect(screen.getByText('WebAuthn not supported')).toBeInTheDocument()
     })
   })

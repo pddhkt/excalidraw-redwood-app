@@ -135,7 +135,7 @@ describe('Input Component', () => {
   it('should support autoFocus attribute', () => {
     render(<Input autoFocus data-testid="input" />)
     const input = screen.getByTestId('input')
-    expect(input).toHaveAttribute('autoFocus')
+    expect(input).toHaveFocus()
   })
 
   it('should be accessible with proper attributes', () => {

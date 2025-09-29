@@ -11,6 +11,9 @@ import {
   startPasskeyLogin,
   startPasskeyRegistration,
 } from "./functions";
+import { Button } from "@/app/components/ui/Button";
+import { Input } from "@/app/components/ui/Input";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/Card";
 
 export function Login() {
   const [username, setUsername] = useState("");
@@ -60,20 +63,36 @@ export function Login() {
   };
 
   return (
-    <>
-      <input
-        type="text"
-        value={username}
-        onChange={(e) => setUsername(e.target.value)}
-        placeholder="Username"
-      />
-      <button onClick={handlePerformPasskeyLogin} disabled={isPending}>
-        {isPending ? <>...</> : "Login with passkey"}
-      </button>
-      <button onClick={handlePerformPasskeyRegister} disabled={isPending}>
-        {isPending ? <>...</> : "Register with passkey"}
-      </button>
-      {result && <div>{result}</div>}
-    </>
+    <Card className="w-full max-w-md mx-auto">
+      <CardHeader>
+        <CardTitle>Authentication</CardTitle>
+        <CardDescription>Sign in or register using your passkey</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Input
+          type="text"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder="Username"
+        />
+        <div className="flex flex-col space-y-2">
+          <Button onClick={handlePerformPasskeyLogin} disabled={isPending}>
+            {isPending ? "..." : "Login with passkey"}
+          </Button>
+          <Button
+            onClick={handlePerformPasskeyRegister}
+            disabled={isPending}
+            variant="outline"
+          >
+            {isPending ? "..." : "Register with passkey"}
+          </Button>
+        </div>
+        {result && (
+          <div className="p-3 rounded-md bg-muted text-sm">
+            {result}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

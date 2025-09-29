@@ -1,7 +1,16 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { sendMagicLink } from "./magicLinkFunctions";
+import {
+  startAuthentication,
+  startRegistration,
+} from "@simplewebauthn/browser";
+import {
+  finishPasskeyLogin,
+  finishPasskeyRegistration,
+  startPasskeyLogin,
+  startPasskeyRegistration,
+} from "./functions";
 import { Button } from "@/app/components/ui/Button";
 import { Input } from "@/app/components/ui/Input";
 import { Label } from "@/app/components/ui/Label";
@@ -9,160 +18,173 @@ import { Alert, AlertDescription } from "@/app/components/ui/Alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/Card";
 
 export function Login() {
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [alertState, setAlertState] = useState<{
     type: "success" | "error" | null;
     message: string;
   }>({ type: null, message: "" });
   const [isPending, startTransition] = useTransition();
-  const [emailSent, setEmailSent] = useState(false);
 
-  const handleSendMagicLink = async () => {
+  const passkeyLogin = async () => {
     try {
       setAlertState({ type: null, message: "" });
 
-      if (!email.trim()) {
-        setAlertState({ type: "error", message: "Please enter your email address" });
-        return;
-      }
+      // 1. Get a challenge from the worker
+      const options = await startPasskeyLogin();
 
-      const result = await sendMagicLink(email);
+      // 2. Ask the browser to sign the challenge
+      const login = await startAuthentication({ optionsJSON: options });
 
-      if (result.success) {
-        setEmailSent(true);
-        setAlertState({
-          type: "success",
-          message: result.isNewUser
-            ? "Welcome! Check your email for the onboarding link."
-            : "Welcome back! Check your email for the login link."
-        });
+      // 3. Give the signed challenge to the worker to finish the login process
+      const success = await finishPasskeyLogin(login);
+
+      if (!success) {
+        setAlertState({ type: "error", message: "Login failed. Please try again." });
       } else {
-        setAlertState({ type: "error", message: result.message });
+        setAlertState({ type: "success", message: "Login successful! Redirecting..." });
+        // TODO: Redirect to dashboard after successful login
       }
     } catch (error) {
       setAlertState({
         type: "error",
-        message: "Something went wrong. Please try again."
+        message: error instanceof Error ? error.message : "An unexpected error occurred"
       });
     }
   };
 
-  const handleSendMagicLinkTransition = () => {
-    startTransition(() => void handleSendMagicLink());
+  const passkeyRegister = async () => {
+    try {
+      setAlertState({ type: null, message: "" });
+
+      if (!username.trim()) {
+        setAlertState({ type: "error", message: "Please enter a username" });
+        return;
+      }
+
+      // 1. Get a challenge from the worker
+      const options = await startPasskeyRegistration(username);
+
+      // 2. Ask the browser to sign the challenge
+      const registration = await startRegistration({ optionsJSON: options });
+
+      // 3. Give the signed challenge to the worker to finish the registration process
+      const success = await finishPasskeyRegistration(username, registration);
+
+      if (!success) {
+        setAlertState({ type: "error", message: "Registration failed. Username may already exist." });
+      } else {
+        setAlertState({ type: "success", message: "Registration successful! You can now login." });
+      }
+    } catch (error) {
+      setAlertState({
+        type: "error",
+        message: error instanceof Error ? error.message : "An unexpected error occurred"
+      });
+    }
   };
 
-  const handleResendEmail = () => {
-    setEmailSent(false);
-    setAlertState({ type: null, message: "" });
+  const handlePerformPasskeyLogin = () => {
+    startTransition(() => void passkeyLogin());
+  };
+
+  const handlePerformPasskeyRegister = () => {
+    startTransition(() => void passkeyRegister());
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-background to-muted/20">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">
-            {emailSent ? "Check your email" : "Welcome to Excalidraw"}
-          </CardTitle>
+          <CardTitle className="text-2xl font-bold text-center">Welcome to Excalidraw</CardTitle>
           <CardDescription className="text-center">
-            {emailSent
-              ? "We've sent you a magic link to sign in"
-              : "Enter your email to sign in or create an account"
-            }
+            Sign in to your account or create a new one using passkeys
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {!emailSent ? (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email Address</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your@email.com"
-                  disabled={isPending}
-                  autoComplete="email"
-                  required
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && email.trim()) {
-                      handleSendMagicLinkTransition();
-                    }
-                  }}
-                />
-                <p className="text-xs text-muted-foreground">
-                  We'll send you a magic link - no password needed!
-                </p>
+          <div className="space-y-2">
+            <Label htmlFor="username">Username</Label>
+            <Input
+              id="username"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Enter your username"
+              disabled={isPending}
+              autoComplete="username"
+              required
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && username.trim()) {
+                  handlePerformPasskeyLogin();
+                }
+              }}
+            />
+            <p className="text-xs text-muted-foreground">
+              Use this username for both login and registration
+            </p>
+          </div>
+
+          {alertState.type && (
+            <Alert variant={alertState.type === "error" ? "destructive" : "success"}>
+              <AlertDescription>{alertState.message}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="space-y-3">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
               </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  Choose an action
+                </span>
+              </div>
+            </div>
 
-              {alertState.type && (
-                <Alert variant={alertState.type === "error" ? "destructive" : "success"}>
-                  <AlertDescription>{alertState.message}</AlertDescription>
-                </Alert>
-              )}
-
+            <div className="grid gap-2">
               <Button
-                onClick={handleSendMagicLinkTransition}
-                disabled={isPending || !email.trim()}
+                onClick={handlePerformPasskeyLogin}
+                disabled={isPending}
                 className="w-full"
                 size="lg"
               >
                 {isPending ? (
                   <span className="flex items-center gap-2">
                     <span className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
-                    Sending magic link...
+                    Authenticating...
                   </span>
                 ) : (
-                  "Send Magic Link"
+                  <span className="flex items-center gap-2">
+                    🔑 Sign in with Passkey
+                  </span>
                 )}
               </Button>
-            </>
-          ) : (
-            <>
-              <div className="text-center space-y-4">
-                <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
-                  <svg className="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="font-medium">Magic link sent!</p>
-                  <p className="text-sm text-muted-foreground">
-                    Check your email at <strong>{email}</strong> and click the link to sign in.
-                  </p>
-                </div>
-              </div>
 
-              {alertState.type && (
-                <Alert variant={alertState.type === "error" ? "destructive" : "success"}>
-                  <AlertDescription>{alertState.message}</AlertDescription>
-                </Alert>
-              )}
+              <Button
+                onClick={handlePerformPasskeyRegister}
+                disabled={isPending || !username.trim()}
+                variant="outline"
+                className="w-full"
+                size="lg"
+              >
+                {isPending ? (
+                  <span className="flex items-center gap-2">
+                    <span className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
+                    Creating account...
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    ➕ Create New Account
+                  </span>
+                )}
+              </Button>
+            </div>
+          </div>
 
-              <div className="space-y-2">
-                <Button
-                  onClick={handleResendEmail}
-                  variant="outline"
-                  className="w-full"
-                >
-                  Use different email
-                </Button>
-                <Button
-                  onClick={handleSendMagicLinkTransition}
-                  disabled={isPending}
-                  variant="ghost"
-                  className="w-full"
-                  size="sm"
-                >
-                  Resend magic link
-                </Button>
-              </div>
-            </>
-          )}
-
-          <p className="text-center text-xs text-muted-foreground">
-            By continuing, you agree to our Terms of Service and Privacy Policy
-          </p>
+          <div className="text-center text-xs text-muted-foreground space-y-2">
+            <p>🔒 Passkeys use your device's biometrics or PIN for secure authentication</p>
+            <p>By continuing, you agree to our Terms of Service and Privacy Policy</p>
+          </div>
         </CardContent>
       </Card>
     </div>

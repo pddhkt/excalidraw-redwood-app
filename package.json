@@ -25,6 +25,11 @@
     "check": "npm run generate && npm run types",
     "types": "tsc",
     "test": "vitest",
+    "test:unit": "vitest run --dir tests/unit",
+    "test:integration": "vitest run --dir tests/integration",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:all": "npm run test:unit && npm run test:integration && npm run test:e2e",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
     "test:watch": "vitest --watch",
@@ -39,13 +44,18 @@
     "react": "19.2.0-canary-d415fd3e-20250919",
     "react-dom": "19.2.0-canary-d415fd3e-20250919",
     "react-server-dom-webpack": "19.2.0-canary-d415fd3e-20250919",
-    "rwsdk": "1.0.0-alpha.9"
+    "rwsdk": "1.0.0-alpha.9",
+    "clsx": "^2.1.0",
+    "tailwind-merge": "^2.2.0",
+    "date-fns": "^3.0.0",
+    "lucide-react": "^0.300.0"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.13.3",
     "@cloudflare/workers-types": "4.20250921.0",
     "@testing-library/jest-dom": "^6.4.8",
     "@testing-library/react": "^16.0.1",
+    "@testing-library/user-event": "^14.5.0",
     "@types/node": "22.14.0",
     "@types/react": "19.1.2",
     "@types/react-dom": "19.1.2",
@@ -55,7 +65,12 @@
     "vibe-rules": "0.2.31",
     "vite": "7.1.6",
     "vitest": "^2.1.1",
-    "wrangler": "4.38.0"
+    "wrangler": "4.38.0",
+    "@playwright/test": "^1.40.0",
+    "@vitest/coverage-v8": "^2.1.1",
+    "tailwindcss": "^3.4.0",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.32"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

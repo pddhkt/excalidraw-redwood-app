@@ -38,11 +38,11 @@ jobs:
       - name: Run integration tests
         run: pnpm run test:integration || echo "No integration tests found, continuing..."
 
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps
-
-      - name: Run E2E tests
-        run: echo "Skipping E2E tests for deployment" # pnpm run test:e2e
+      # E2E tests are skipped for now - no need to install Playwright
+      # - name: Install Playwright browsers
+      #   run: npx playwright install --with-deps
+      # - name: Run E2E tests
+      #   run: pnpm run test:e2e
 
       - name: Upload test results
         if: always()

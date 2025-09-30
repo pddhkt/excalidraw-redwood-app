@@ -5,6 +5,9 @@ export interface Session {
   userId?: string | null;
   challenge?: string | null;
   createdAt: number;
+  expiresAt?: number;
+  rememberMe?: boolean;
+  lastActivity?: number;
 }
 
 export class SessionDurableObject extends DurableObject {
@@ -45,7 +48,12 @@ export class SessionDurableObject extends DurableObject {
       };
     }
 
-    if (session.createdAt + MAX_SESSION_DURATION < Date.now()) {
+    // Check custom expiresAt field first, fallback to MAX_SESSION_DURATION
+    const isExpired = session.expiresAt
+      ? session.expiresAt < Date.now()
+      : session.createdAt + MAX_SESSION_DURATION < Date.now();
+
+    if (isExpired) {
       await this.revokeSession();
       return {
         error: "Session expired",

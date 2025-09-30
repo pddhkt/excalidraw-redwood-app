@@ -10,6 +10,8 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:5173',
     trace: 'on-first-retry',
+    // Enable headed mode for session token tests
+    headless: process.env.HEADLESS !== 'false',
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },

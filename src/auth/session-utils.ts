@@ -8,7 +8,7 @@ export interface SessionData {
 }
 
 // Session duration constants
-const REGULAR_SESSION_DURATION = 24 * 60 * 60 * 1000 // 24 hours in milliseconds
+const REGULAR_SESSION_DURATION = 30 * 1000 // 30 seconds for testing (was: 24 * 60 * 60 * 1000)
 const REMEMBER_ME_SESSION_DURATION = 30 * 24 * 60 * 60 * 1000 // 30 days in milliseconds
 
 /**

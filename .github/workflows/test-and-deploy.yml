@@ -86,7 +86,7 @@ jobs:
             for migration in migrations/*.sql; do
               if [ -f "$migration" ]; then
                 echo "Running migration: $migration"
-                pnpx wrangler d1 execute excalidraw-redwood-app-db --file="$migration" --yes || echo "Migration may have already been applied: $migration"
+                pnpx wrangler d1 execute excalidraw-redwood-app-db --file="$migration" --remote --yes || echo "Migration may have already been applied: $migration"
               fi
             done
           else

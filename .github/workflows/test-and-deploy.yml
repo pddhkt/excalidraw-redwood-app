@@ -59,6 +59,8 @@ jobs:
     runs-on: ubuntu-latest
     if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging') && github.event_name == 'push'
     timeout-minutes: 5
+    outputs:
+      deployment-url: ${{ steps.get-url.outputs.url }}
 
     steps:
       - name: Checkout code
@@ -101,3 +103,61 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: 9abdd4944b6a8642bc5a9667524cceaa
+
+      - name: Set deployment URL
+        id: get-url
+        run: echo "url=https://excalidraw-redwood-app.pddhkt.workers.dev" >> $GITHUB_OUTPUT
+
+  e2e-test:
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging') && github.event_name == 'push'
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Wait for deployment to be ready
+        run: |
+          echo "Waiting for deployment to be ready..."
+          sleep 30
+          for i in {1..10}; do
+            if curl -sSf "${{ needs.deploy.outputs.deployment-url }}/user/login" > /dev/null; then
+              echo "Site is ready!"
+              break
+            fi
+            echo "Attempt $i: Site not ready yet, waiting..."
+            sleep 10
+          done
+
+      - name: Run E2E tests on live site
+        run: PLAYWRIGHT_BASE_URL="${{ needs.deploy.outputs.deployment-url }}" pnpm run test:e2e
+        env:
+          CI: true
+
+      - name: Upload E2E test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: |
+            test-results/
+            playwright-report/

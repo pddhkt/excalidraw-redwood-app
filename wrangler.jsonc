@@ -29,5 +29,11 @@
       "new_sqlite_classes": ["SessionDurableObject"]
     }
   ],
-"d1_databases": []
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "excalidraw-app-db",
+      "database_id": "a570b42c-1799-4d00-b37e-d91b245c2fa7"
+    }
+  ]
 }

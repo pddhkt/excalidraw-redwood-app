@@ -10,7 +10,7 @@ import {
   finishPasskeyRegistration,
   startPasskeyLogin,
   startPasskeyRegistration,
-} from "./functions";
+} from "@/app/pages/auth/functions";
 import { Button } from "@/app/components/ui/Button";
 import { Input } from "@/app/components/ui/Input";
 import { Label } from "@/app/components/ui/Label";

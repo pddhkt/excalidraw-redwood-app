@@ -62,7 +62,8 @@ vi.mock('@/auth/session-utils', () => ({
 }))
 
 // Import after mocks are set up
-const { finishPasskeyLogin, validateSession, logout } = await import('@/app/pages/user/functions')
+const { finishPasskeyLogin, logout } = await import('@/app/pages/auth/functions')
+const { validateSession } = await import('@/app/pages/session/functions')
 
 describe('Authentication Flow with Remember Me', () => {
   beforeEach(() => {

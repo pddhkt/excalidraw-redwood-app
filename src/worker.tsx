@@ -4,7 +4,7 @@ import { Document } from "@/app/Document";
 import "@/styles/globals.css";
 import { Home } from "@/app/pages/Home";
 import { setCommonHeaders } from "@/app/headers";
-import { userRoutes } from "@/app/pages/user/routes";
+import { authRoutes } from "@/app/pages/auth/routes";
 import { sessions, setupSessionStore } from "./session/store";
 import { Session } from "./session/durableObject";
 import { type User, db, setupDb } from "@/db";
@@ -27,7 +27,7 @@ export default defineApp([
     } catch (error) {
       if (error instanceof ErrorResponse && error.code === 401) {
         await sessions.remove(request, response.headers);
-        response.headers.set("Location", "/user/login");
+        response.headers.set("Location", "/login");
 
         return new Response(null, {
           status: 302,
@@ -47,18 +47,17 @@ export default defineApp([
     }
   },
   render(Document, [
-    route("/", () => new Response("Hello, World!")),
-    route("/protected", [
+    route("/", [
       ({ ctx }) => {
         if (!ctx.user) {
           return new Response(null, {
             status: 302,
-            headers: { Location: "/user/login" },
+            headers: { Location: "/login" },
           });
         }
       },
       Home,
     ]),
-    prefix("/user", userRoutes),
+    ...authRoutes,
   ]),
 ]);

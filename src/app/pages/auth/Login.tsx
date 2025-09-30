@@ -19,6 +19,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app
 
 export function Login() {
   const [username, setUsername] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const [alertState, setAlertState] = useState<{
     type: "success" | "error" | null;
     message: string;
@@ -36,13 +37,15 @@ export function Login() {
       const login = await startAuthentication({ optionsJSON: options });
 
       // 3. Give the signed challenge to the worker to finish the login process
-      const success = await finishPasskeyLogin(login);
+      const success = await finishPasskeyLogin(login, rememberMe);
 
       if (!success) {
         setAlertState({ type: "error", message: "Login failed. Please try again." });
       } else {
         setAlertState({ type: "success", message: "Login successful! Redirecting..." });
-        // TODO: Redirect to dashboard after successful login
+        setTimeout(() => {
+          window.location.href = "/";
+        }, 500);
       }
     } catch (error) {
       setAlertState({
@@ -73,7 +76,10 @@ export function Login() {
       if (!success) {
         setAlertState({ type: "error", message: "Registration failed. Username may already exist." });
       } else {
-        setAlertState({ type: "success", message: "Registration successful! You can now login." });
+        setAlertState({ type: "success", message: "Registration successful! Redirecting..." });
+        setTimeout(() => {
+          window.location.href = "/";
+        }, 500);
       }
     } catch (error) {
       setAlertState({
@@ -128,6 +134,20 @@ export function Login() {
               <AlertDescription>{alertState.message}</AlertDescription>
             </Alert>
           )}
+
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id="rememberMe"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              disabled={isPending}
+              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+            />
+            <Label htmlFor="rememberMe" className="text-sm font-normal cursor-pointer">
+              Remember me for 30 days
+            </Label>
+          </div>
 
           <div className="space-y-3">
             <div className="relative">

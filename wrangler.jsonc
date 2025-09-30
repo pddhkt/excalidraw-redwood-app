@@ -29,5 +29,11 @@
       "new_sqlite_classes": ["SessionDurableObject"]
     }
   ],
-  "d1_databases": []
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "excalidraw-redwood-app-db",
+      "database_id": "d9fc960d-070e-46cd-915a-8cdcbc97d9e2"
+    }
+  ]
 }

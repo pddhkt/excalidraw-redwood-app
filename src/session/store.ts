@@ -5,6 +5,7 @@ export let sessions: ReturnType<typeof createSessionStore>;
 const createSessionStore = (env: Env) =>
   defineDurableSession({
     sessionDurableObject: env.SESSION_DURABLE_OBJECT,
+    secret: env.SESSION_SECRET || 'default-dev-secret-key-please-change',
   });
 
 export const setupSessionStore = (env: Env) => {

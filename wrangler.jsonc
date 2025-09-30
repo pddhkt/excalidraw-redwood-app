@@ -21,7 +21,8 @@
   },
   "vars": {
     "WEBAUTHN_APP_NAME": "Excalidraw Redwood App",
-    "WEBAUTHN_RP_ID": "excalidraw-redwood-app.pages.dev"
+    "WEBAUTHN_RP_ID": "excalidraw-redwood-app.pages.dev",
+    "SESSION_SECRET": "your-secret-key-change-this-in-production-1234567890abcdef"
   },
   "migrations": [
     {

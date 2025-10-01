@@ -4,29 +4,54 @@ This document outlines the backend logic for the drawing management APIs in the 
 
 ## Overview
 
-The application manages three core drawing operations:
-1. **Create Personal Drawing** - Creating metadata for new drawings
-2. **Save Drawing** - Saving/updating drawing content to R2 storage
-3. **List Drawings** - Retrieving all drawings for a user
+The application manages drawings through a **draft-first workflow** with status-based lifecycle management:
+
+### Drawing Lifecycle States
+
+```
+DRAFT (Personal/Private)
+  ↓ User publishes
+PUBLISHED (Shareable)
+  ↓ User archives
+ARCHIVED (Hidden)
+```
+
+- **DRAFT**: Work in progress, private to user, supports auto-save
+- **PUBLISHED**: Finalized drawing, can be converted to shareable with permissions
+- **ARCHIVED**: Hidden but kept for reference
+
+### Core API Operations
+
+1. **Create Drawing** - Creates a new drawing (defaults to DRAFT status)
+2. **Auto-Save Drawing** - Frequent background saves for drafts
+3. **Save Drawing** - Manual save with full content to R2
+4. **Get Drawing Content** - Load drawing from R2 for editing
+5. **Update Drawing Metadata** - Update title, description, tags
+6. **Publish Drawing** - Convert draft to published state
+7. **Archive Drawing** - Move to archived state
+8. **List Drawings** - Query drawings with status filters
+9. **Duplicate Drawing** - Copy existing drawing
+10. **Delete Drawing** - Permanently remove drawing
 
 ### Storage Architecture
 
-Based on the project overview, personal drawings follow a **hybrid storage approach**:
+Drawings follow a **hybrid storage approach**:
 
-- **D1 Database (Metadata)**: Stores drawing metadata (ID, title, description, timestamps, user info, etc.) - Small data (<1KB per record)
+- **D1 Database (Metadata)**: Stores drawing metadata (ID, title, description, status, timestamps, user info) - Small data (<1KB per record)
 - **R2 Storage (Content)**: Stores the actual Excalidraw drawing data (JSON), thumbnails, and version history - Large files (up to 10MB)
 
 This separation optimizes:
 - **Performance**: Fast metadata queries without loading large drawing files
 - **Cost**: R2 is optimized for large file storage
-- **Scalability**: Can handle hundreds of concurrent users efficiently
+- **Scalability**: Can handle thousands of drawings efficiently
+- **Auto-save**: Quick R2 updates without database overhead
 
 ---
 
-## 1. Create Personal Drawing API
+## 1. Create Drawing API
 
 ### Purpose
-Creates a new drawing metadata record in the database. This initializes a drawing without storing the actual content yet. The content is stored separately via the Save Drawing API (API #2).
+Creates a new drawing metadata record in the database with DRAFT status by default. This initializes a drawing without storing the actual content yet. The content is stored separately via the Save/Auto-Save APIs.
 
 ### Sequence Diagram
 
@@ -115,12 +140,19 @@ interface Drawing {
   description?: string | null
   contentUrl?: string | null  // R2 path to drawing JSON (not the full content)
   thumbnailUrl?: string | null // R2 path to thumbnail image
-  isPublic: boolean       // Visibility flag
-  isArchived?: boolean    // Archive status
+  status: DrawingStatus   // DRAFT | PUBLISHED | ARCHIVED
+  isPublic: boolean       // Visibility flag (only for PUBLISHED)
   tags?: string[]         // Optional tags for organization
   createdAt: Date
   updatedAt: Date
+  publishedAt?: Date | null  // When status changed to PUBLISHED
   lastOpenedAt?: Date | null
+}
+
+enum DrawingStatus {
+  DRAFT = 'DRAFT',
+  PUBLISHED = 'PUBLISHED',
+  ARCHIVED = 'ARCHIVED'
 }
 
 // Note: The 'content' field is NOT stored in D1 database
@@ -129,10 +161,75 @@ interface Drawing {
 
 ---
 
-## 2. Save Drawing API
+## 2. Auto-Save Drawing API
 
 ### Purpose
-Saves or updates the actual drawing content to R2 storage. This API handles the large Excalidraw JSON data and thumbnails, storing them in R2 while updating metadata in D1.
+Lightweight auto-save endpoint for frequent background saves during editing. Only updates R2 content without modifying metadata. Designed for DRAFT drawings with debounced client-side calls (every 3-5 seconds).
+
+### Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Worker
+    participant Functions as drawing/functions.ts
+    participant R2Utils as lib/r2-storage.ts
+    participant R2Bucket
+
+    Client->>Worker: PUT /api/drawings/:id/auto-save
+    Note over Client,Worker: Debounced request<br/>(content only, no metadata)
+
+    Worker->>Functions: autoSaveDrawing(drawingId, userId, content)
+
+    Functions->>R2Utils: uploadDrawingContent(bucket, userId, drawingId, content)
+    Note over R2Utils: Quick R2 update<br/>No database write
+    R2Utils->>R2Bucket: bucket.put(key, content)
+    R2Bucket-->>R2Utils: Content saved
+    R2Utils-->>Functions: Return success
+
+    Functions-->>Worker: Return { saved: true, timestamp }
+    Worker-->>Client: 200 OK<br/>JSON: { saved: true }
+```
+
+### Expected Request
+```typescript
+PUT /api/drawings/:id/auto-save
+Content-Type: application/json
+
+{
+  "content": {
+    // Excalidraw JSON only
+    "type": "excalidraw",
+    "version": 2,
+    "elements": [...],
+    "appState": {...}
+  }
+}
+```
+
+### Expected Response
+```typescript
+200 OK
+
+{
+  "saved": true,
+  "timestamp": "2025-10-01T10:15:30.000Z"
+}
+```
+
+### Notes
+- No session/auth check needed (faster)
+- Only for DRAFT status drawings
+- No thumbnail generation
+- No metadata updates
+- Optimized for speed (<100ms)
+
+---
+
+## 3. Save Drawing API
+
+### Purpose
+Full manual save that updates both R2 content and D1 metadata. Handles large Excalidraw JSON data, thumbnails, and metadata updates (title, description, etc.).
 
 ### Sequence Diagram
 
@@ -299,10 +396,138 @@ R2 Bucket: excalidraw-drawings
 
 ---
 
-## 3. List Drawings API
+## 4. Get Drawing Content API
 
 ### Purpose
-Retrieves all drawings belonging to the authenticated user.
+Fetches the actual Excalidraw JSON content from R2 storage. Used when opening a drawing in the editor.
+
+### Expected Request
+```typescript
+GET /api/drawings/:id/content
+```
+
+### Expected Response
+```typescript
+200 OK
+
+{
+  "content": {
+    "type": "excalidraw",
+    "version": 2,
+    "source": "...",
+    "elements": [...],
+    "appState": {...},
+    "files": {...}
+  },
+  "drawing": {
+    "id": "uuid-here",
+    "title": "My Drawing",
+    "status": "DRAFT",
+    "updatedAt": "2025-10-01T10:15:30.000Z"
+  }
+}
+```
+
+---
+
+## 5. Update Drawing Metadata API
+
+### Purpose
+Updates only metadata fields (title, description, tags) without touching R2 content. Fast operation for renaming or organizing drawings.
+
+### Expected Request
+```typescript
+PATCH /api/drawings/:id
+Content-Type: application/json
+
+{
+  "title": "Updated Title",
+  "description": "New description",
+  "tags": ["updated", "tags"]
+}
+```
+
+### Expected Response
+```typescript
+200 OK
+
+{
+  "drawing": {
+    "id": "uuid-here",
+    "title": "Updated Title",
+    "description": "New description",
+    "tags": ["updated", "tags"],
+    "updatedAt": "2025-10-01T10:20:00.000Z"
+  }
+}
+```
+
+---
+
+## 6. Publish Drawing API
+
+### Purpose
+Converts a DRAFT drawing to PUBLISHED status, making it ready for sharing (future feature).
+
+### Expected Request
+```typescript
+PUT /api/drawings/:id/publish
+```
+
+### Expected Response
+```typescript
+200 OK
+
+{
+  "drawing": {
+    "id": "uuid-here",
+    "status": "PUBLISHED",
+    "publishedAt": "2025-10-01T10:25:00.000Z",
+    "updatedAt": "2025-10-01T10:25:00.000Z"
+  }
+}
+```
+
+### Notes
+- Only DRAFT drawings can be published
+- Sets `publishedAt` timestamp
+- Future: Will enable sharing features
+
+---
+
+## 7. Archive Drawing API
+
+### Purpose
+Moves a drawing to ARCHIVED status, hiding it from default views but keeping it accessible.
+
+### Expected Request
+```typescript
+PUT /api/drawings/:id/archive
+```
+
+### Expected Response
+```typescript
+200 OK
+
+{
+  "drawing": {
+    "id": "uuid-here",
+    "status": "ARCHIVED",
+    "updatedAt": "2025-10-01T10:30:00.000Z"
+  }
+}
+```
+
+### Notes
+- Can archive DRAFT or PUBLISHED drawings
+- Archived drawings can be restored by updating status
+
+---
+
+## 8. List Drawings API
+
+### Purpose
+Retrieves all drawings belonging to the authenticated user with status-based filtering.
 
 ### Sequence Diagram
 
@@ -315,7 +540,7 @@ sequenceDiagram
     participant Functions as drawing/functions.ts
 
     Client->>Worker: GET /api/drawings
-    Note over Client,Worker: Optional query params:<br/>?archived=false&tag=sketch&sortBy=updated
+    Note over Client,Worker: Optional query params:<br/>?status=DRAFT&tag=sketch&sortBy=updated
 
     Worker->>SessionStore: sessions.load(request)
     SessionStore-->>Worker: Return session data
@@ -331,7 +556,7 @@ sequenceDiagram
             Worker-->>Client: 401 Unauthorized
         else User found
             Worker->>Functions: getUserDrawings(userId, options)
-            Note over Functions: Build query with filters:<br/>WHERE userId = user.id<br/>AND isArchived = false<br/>AND tags contains tag<br/>ORDER BY updatedAt DESC
+            Note over Functions: Build query with filters:<br/>WHERE userId = user.id<br/>AND status = DRAFT (if requested)<br/>AND tags contains tag<br/>ORDER BY updatedAt DESC
 
             Functions->>Database: db.drawing.findMany()
             Database-->>Functions: Return drawing records
@@ -348,7 +573,9 @@ sequenceDiagram
 ```typescript
 GET /api/drawings
 // or with filters
-GET /api/drawings?archived=false&tag=sketch
+GET /api/drawings?status=DRAFT&tag=sketch&sortBy=updated
+GET /api/drawings?status=PUBLISHED
+GET /api/drawings/drafts  // Shorthand for ?status=DRAFT
 ```
 
 ### Expected Response
@@ -364,8 +591,8 @@ GET /api/drawings?archived=false&tag=sketch
       "description": null,
       "contentUrl": "drawing-content/user-uuid/uuid-1.json",
       "thumbnailUrl": "drawing-thumbnails/user-uuid/uuid-1.png",
+      "status": "DRAFT",
       "isPublic": false,
-      "isArchived": false,
       "tags": ["sketch"],
       "createdAt": "2025-10-01T09:00:00.000Z",
       "updatedAt": "2025-10-01T09:30:00.000Z",
@@ -378,9 +605,10 @@ GET /api/drawings?archived=false&tag=sketch
       "description": "My second drawing",
       "contentUrl": "drawing-content/user-uuid/uuid-2.json",
       "thumbnailUrl": null,  // No thumbnail generated yet
+      "status": "PUBLISHED",
       "isPublic": true,
-      "isArchived": false,
       "tags": ["diagram", "sketch"],
+      "publishedAt": "2025-09-30T16:00:00.000Z",
       "createdAt": "2025-09-30T15:00:00.000Z",
       "updatedAt": "2025-10-01T08:00:00.000Z",
       "lastOpenedAt": null
@@ -394,6 +622,115 @@ GET /api/drawings?archived=false&tag=sketch
 - This API returns only metadata, not the actual drawing content
 - To load a drawing's content, fetch from R2 using the `contentUrl`
 - Thumbnails can be loaded directly from `thumbnailUrl` for preview
+- Supports status-based filtering for organizing drawings
+
+---
+
+## 9. Duplicate Drawing API
+
+### Purpose
+Creates a copy of an existing drawing with all content and metadata. New drawing starts as DRAFT.
+
+### Expected Request
+```typescript
+POST /api/drawings/:id/duplicate
+Content-Type: application/json
+
+{
+  "title": "Copy of Original Title"  // Optional, defaults to "Copy of {original}"
+}
+```
+
+### Expected Response
+```typescript
+201 Created
+
+{
+  "drawing": {
+    "id": "new-uuid-here",
+    "userId": "user-uuid",
+    "title": "Copy of Original Title",
+    "description": "Same as original",
+    "contentUrl": "drawing-content/user-uuid/new-uuid-here.json",
+    "thumbnailUrl": "drawing-thumbnails/user-uuid/new-uuid-here.png",
+    "status": "DRAFT",
+    "isPublic": false,
+    "tags": ["sketch"],
+    "createdAt": "2025-10-01T11:00:00.000Z",
+    "updatedAt": "2025-10-01T11:00:00.000Z"
+  }
+}
+```
+
+### Notes
+- Copies both R2 content and metadata
+- New drawing always starts as DRAFT
+- New UUID generated for copy
+- R2 files are duplicated
+
+---
+
+## 10. Delete Drawing API
+
+### Purpose
+Permanently deletes a drawing from both D1 database and R2 storage.
+
+### Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Worker
+    participant Functions as drawing/functions.ts
+    participant Database
+    participant R2Utils as lib/r2-storage.ts
+    participant R2Bucket
+
+    Client->>Worker: DELETE /api/drawings/:id
+
+    Worker->>Functions: deleteDrawing(drawingId, userId)
+
+    Functions->>Database: db.drawing.findUnique()
+    Note over Functions: Verify ownership
+
+    alt User is not owner
+        Functions-->>Worker: Error: Forbidden
+        Worker-->>Client: 403 Forbidden
+    else User is owner
+        Functions->>R2Utils: deleteDrawingFiles(bucket, userId, drawingId)
+
+        R2Utils->>R2Bucket: bucket.delete(contentKey)
+        R2Bucket-->>R2Utils: Content deleted
+
+        R2Utils->>R2Bucket: bucket.delete(thumbnailKey)
+        R2Bucket-->>R2Utils: Thumbnail deleted
+
+        R2Utils-->>Functions: R2 cleanup complete
+
+        Functions->>Database: db.drawing.delete()
+        Database-->>Functions: Record deleted
+        Functions-->>Worker: Return success
+
+        Worker-->>Client: 204 No Content
+    end
+```
+
+### Expected Request
+```typescript
+DELETE /api/drawings/:id
+```
+
+### Expected Response
+```typescript
+204 No Content
+```
+
+### Notes
+- Permanently deletes from both D1 and R2
+- Cannot be undone
+- Verifies user ownership before deletion
+- R2 cleanup happens before database deletion
+- If R2 deletion fails, database record is kept
 
 ---
 
@@ -441,29 +778,36 @@ sequenceDiagram
 
 ```prisma
 model Drawing {
-  id           String    @id @default(uuid())
+  id           String        @id @default(uuid())
   userId       String
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Metadata only (stored in D1)
   title        String
   description  String?
-  contentUrl   String?   // R2 path: drawing-content/{userId}/{drawingId}.json
-  thumbnailUrl String?   // R2 path: drawing-thumbnails/{userId}/{drawingId}.png
+  contentUrl   String?       // R2 path: drawing-content/{userId}/{drawingId}.json
+  thumbnailUrl String?       // R2 path: drawing-thumbnails/{userId}/{drawingId}.png
 
-  // Settings
-  isPublic     Boolean   @default(false)
-  isArchived   Boolean   @default(false)
-  tags         String[]  // SQLite stores as comma-separated or JSON
+  // Status and Settings
+  status       DrawingStatus @default(DRAFT)
+  isPublic     Boolean       @default(false)
+  tags         String[]      // SQLite stores as comma-separated or JSON
 
   // Timestamps
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  publishedAt  DateTime?     // Set when status changes to PUBLISHED
   lastOpenedAt DateTime?
 
-  @@index([userId, updatedAt])
-  @@index([userId, isArchived])
+  @@index([userId, status, updatedAt])
+  @@index([userId, status])
   @@index([isPublic])
+}
+
+enum DrawingStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
 }
 
 // Add to User model:
@@ -538,23 +882,31 @@ npx prisma migrate dev --name add_drawing_model_with_r2
 
 ### 3. Create Backend Functions
 Create `src/app/pages/drawing/functions.ts`:
-- `createDrawing()` - Create metadata in D1
-- `saveDrawingContent()` - Save content to R2 + update metadata
-- `getDrawing()` - Fetch metadata from D1
-- `getDrawingContent()` - Fetch content from R2
-- `listDrawings()` - List metadata from D1
-- `updateDrawingMetadata()` - Update title, description, tags
-- `deleteDrawing()` - Delete from both D1 and R2
+- `createDrawing(data)` - Create metadata in D1 with DRAFT status
+- `autoSaveDrawing(drawingId, userId, content)` - Quick R2 update only
+- `saveDrawingContent(drawingId, userId, data)` - Save content to R2 + update metadata
+- `getDrawing(drawingId, userId)` - Fetch metadata from D1
+- `getDrawingContent(drawingId, userId)` - Fetch content from R2
+- `getUserDrawings(userId, options)` - List metadata from D1 with status filters
+- `updateDrawingMetadata(drawingId, userId, updates)` - Update title, description, tags
+- `publishDrawing(drawingId, userId)` - Change status to PUBLISHED
+- `archiveDrawing(drawingId, userId)` - Change status to ARCHIVED
+- `duplicateDrawing(drawingId, userId, title?)` - Copy drawing with new UUID
+- `deleteDrawing(drawingId, userId)` - Delete from both D1 and R2
 
 ### 4. Create API Routes
 Create `src/app/pages/drawing/routes.ts`:
-- POST `/api/drawings` - Create new drawing
-- PUT `/api/drawings/:id/save` - Save drawing content to R2
-- GET `/api/drawings` - List all drawings
-- GET `/api/drawings/:id` - Get drawing metadata
+- POST `/api/drawings` - Create new drawing (DRAFT by default)
+- PUT `/api/drawings/:id/auto-save` - Auto-save content only
+- PUT `/api/drawings/:id/save` - Full save with metadata
 - GET `/api/drawings/:id/content` - Get drawing content from R2
-- PATCH `/api/drawings/:id` - Update metadata
-- DELETE `/api/drawings/:id` - Delete drawing
+- PATCH `/api/drawings/:id` - Update metadata only
+- PUT `/api/drawings/:id/publish` - Publish drawing
+- PUT `/api/drawings/:id/archive` - Archive drawing
+- GET `/api/drawings` - List all drawings with status filters
+- GET `/api/drawings/drafts` - List drafts only (shorthand)
+- POST `/api/drawings/:id/duplicate` - Duplicate drawing
+- DELETE `/api/drawings/:id` - Delete drawing permanently
 
 ### 5. Update Worker Configuration
 Update `src/worker.tsx` to:
@@ -592,58 +944,62 @@ export async function deleteDrawingFiles(
 ```
 
 ### 7. Update TypeScript Types
-Update `src/types/drawing.ts` to match the hybrid storage model:
+Update `src/types/drawing.ts` to match the draft-first hybrid storage model:
 - Change `content: string` to `contentUrl?: string | null`
 - Add `thumbnailUrl?: string | null`
+- Add `status: DrawingStatus` with DRAFT/PUBLISHED/ARCHIVED enum
+- Add `publishedAt?: Date | null`
+- Remove `isArchived` (replaced by status)
 
 ### 8. Update UI Components
-- Modify `DrawingCard.tsx` to use `thumbnailUrl` from R2
+- Modify `DrawingCard.tsx` to show status badge (DRAFT/PUBLISHED/ARCHIVED)
+- Use `thumbnailUrl` from R2 for previews
 - Create loading states for R2 content fetching
 - Handle missing thumbnails gracefully
+- Add "Auto-saving..." indicator for drafts
+- Show published date for PUBLISHED drawings
 
 ### 9. Testing
+- Test draft creation and auto-save flow
+- Test publish workflow (DRAFT → PUBLISHED)
+- Test archive workflow (any status → ARCHIVED)
 - Test R2 upload/download operations
 - Test metadata operations in D1
+- Test status-based filtering in list API
+- Test duplicate functionality
+- Test delete with R2 cleanup
 - Test error handling for R2 failures
 - Test large file uploads (up to 10MB)
 
 ### 10. Integration with Excalidraw
 - Load drawing content from R2 when opening editor
-- Auto-save to R2 with debouncing
-- Show save status indicator
-- Handle offline scenarios
+- Implement auto-save with debouncing (3-5 seconds)
+- Show save status indicator ("Saving...", "Saved", "Draft")
+- Handle offline scenarios gracefully
+- Provide "Publish" button for DRAFT drawings
+- Show draft badge in editor UI
+- Prevent auto-save for PUBLISHED drawings (require manual save)
 
 ---
 
-## Additional APIs (Future Enhancement)
+## API Summary Table
 
-### Get Drawing Content
-```
-GET /api/drawings/:id/content
-```
-Fetches the actual Excalidraw JSON from R2. Used when opening a drawing in the editor.
-
-**Response:**
-```json
-{
-  "content": {
-    "type": "excalidraw",
-    "version": 2,
-    "elements": [...],
-    "appState": {...},
-    "files": {...}
-  }
-}
-```
-
-### Update Drawing Metadata
-```
-PATCH /api/drawings/:id
-```
-Updates metadata only (title, description, tags) without touching R2 content.
+| Method | Endpoint | Purpose | Auth | Status Impact |
+|--------|----------|---------|------|---------------|
+| POST | `/api/drawings` | Create new drawing | ✓ | Creates as DRAFT |
+| PUT | `/api/drawings/:id/auto-save` | Auto-save content only | ✓ | No change |
+| PUT | `/api/drawings/:id/save` | Full save with metadata | ✓ | No change |
+| GET | `/api/drawings/:id/content` | Get drawing content | ✓ | No change |
+| PATCH | `/api/drawings/:id` | Update metadata | ✓ | No change |
+| PUT | `/api/drawings/:id/publish` | Publish drawing | ✓ | DRAFT → PUBLISHED |
+| PUT | `/api/drawings/:id/archive` | Archive drawing | ✓ | any → ARCHIVED |
+| GET | `/api/drawings` | List drawings | ✓ | Filter by status |
+| GET | `/api/drawings/drafts` | List drafts only | ✓ | Filter DRAFT |
+| POST | `/api/drawings/:id/duplicate` | Duplicate drawing | ✓ | Copy as DRAFT |
+| DELETE | `/api/drawings/:id` | Delete permanently | ✓ | Removes record |
 
 ---
 
-**Document Version:** 2.0
+**Document Version:** 3.0
 **Last Updated:** 2025-10-01
 **Author:** Claude Code

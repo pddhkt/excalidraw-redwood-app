@@ -36,30 +36,30 @@ sequenceDiagram
     participant Worker
     participant SessionStore
     participant Database
-    participant DrawingModel
+    participant Functions as drawing/functions.ts
 
     Client->>Worker: POST /api/drawings
-    Note over Client,Worker: Request with drawing data<br/>(title, content, thumbnail, etc.)
+    Note over Client,Worker: Request with metadata<br/>(title, description, tags)
 
-    Worker->>SessionStore: Load session from request
+    Worker->>SessionStore: sessions.load(request)
     SessionStore-->>Worker: Return session data
 
     alt Session expired or invalid
-        Worker->>SessionStore: Remove session
+        Worker->>SessionStore: sessions.remove()
         Worker-->>Client: 302 Redirect to /login
     else Session valid
-        Worker->>Database: Find user by session.userId
+        Worker->>Database: db.user.findUnique()
         Database-->>Worker: Return user object
 
         alt User not found
             Worker-->>Client: 401 Unauthorized
         else User found
-            Worker->>DrawingModel: Create new drawing
-            Note over DrawingModel: Generate UUID<br/>Set userId, title, content<br/>Set timestamps<br/>Set default values
+            Worker->>Functions: createDrawing(data)
+            Note over Functions: Generate UUID<br/>Validate input<br/>Set userId, title<br/>Set default values
 
-            DrawingModel->>Database: INSERT drawing record
-            Database-->>DrawingModel: Drawing saved
-            DrawingModel-->>Worker: Return drawing object
+            Functions->>Database: db.drawing.create()
+            Database-->>Functions: Drawing metadata saved
+            Functions-->>Worker: Return drawing object
 
             Worker-->>Client: 201 Created<br/>JSON: { drawing }
         end
@@ -142,29 +142,30 @@ sequenceDiagram
     participant Worker
     participant SessionStore
     participant Database
-    participant DrawingModel
-    participant R2Storage
+    participant Functions as drawing/functions.ts
+    participant R2Utils as lib/r2-storage.ts
+    participant R2Bucket
 
     Client->>Worker: PUT /api/drawings/:id/save
     Note over Client,Worker: Request with drawing content<br/>(Excalidraw JSON, thumbnail)
 
-    Worker->>SessionStore: Load session from request
+    Worker->>SessionStore: sessions.load(request)
     SessionStore-->>Worker: Return session data
 
     alt Session expired or invalid
-        Worker->>SessionStore: Remove session
+        Worker->>SessionStore: sessions.remove()
         Worker-->>Client: 302 Redirect to /login
     else Session valid
-        Worker->>Database: Find user by session.userId
+        Worker->>Database: db.user.findUnique()
         Database-->>Worker: Return user object
 
         alt User not found
             Worker-->>Client: 401 Unauthorized
         else User found
-            Worker->>DrawingModel: Get drawing by ID
-            DrawingModel->>Database: SELECT drawing WHERE id = :id
-            Database-->>DrawingModel: Return drawing record
-            DrawingModel-->>Worker: Return drawing metadata
+            Worker->>Functions: getDrawing(drawingId, userId)
+            Functions->>Database: db.drawing.findUnique()
+            Database-->>Functions: Return drawing record
+            Functions-->>Worker: Return drawing metadata
 
             alt Drawing not found
                 Worker-->>Client: 404 Not Found
@@ -172,26 +173,26 @@ sequenceDiagram
                 alt User is not owner
                     Worker-->>Client: 403 Forbidden
                 else User is owner
-                    Note over Worker: Prepare R2 storage keys<br/>drawing-content/{userId}/{drawingId}.json<br/>drawing-thumbnails/{userId}/{drawingId}.png
+                    Worker->>Functions: saveDrawingContent(drawingId, userId, data)
 
-                    Worker->>R2Storage: PUT drawing content
-                    Note over R2Storage: Store Excalidraw JSON<br/>Key: drawing-content/{userId}/{drawingId}.json<br/>Content-Type: application/json
-
-                    R2Storage-->>Worker: Content stored successfully
+                    Functions->>R2Utils: uploadDrawingContent(bucket, userId, drawingId, content)
+                    Note over R2Utils: Prepare key:<br/>drawing-content/{userId}/{drawingId}.json
+                    R2Utils->>R2Bucket: bucket.put(key, JSON.stringify(content))
+                    R2Bucket-->>R2Utils: Content stored
+                    R2Utils-->>Functions: Return contentUrl
 
                     alt Thumbnail provided
-                        Worker->>R2Storage: PUT thumbnail image
-                        Note over R2Storage: Store thumbnail<br/>Key: drawing-thumbnails/{userId}/{drawingId}.png<br/>Content-Type: image/png
-
-                        R2Storage-->>Worker: Thumbnail stored successfully
+                        Functions->>R2Utils: uploadThumbnail(bucket, userId, drawingId, thumbnail)
+                        Note over R2Utils: Convert base64 to binary<br/>Key: drawing-thumbnails/{userId}/{drawingId}.png
+                        R2Utils->>R2Bucket: bucket.put(key, imageBuffer)
+                        R2Bucket-->>R2Utils: Thumbnail stored
+                        R2Utils-->>Functions: Return thumbnailUrl
                     end
 
-                    Worker->>DrawingModel: Update drawing metadata
-                    Note over DrawingModel: Set updatedAt = now()<br/>Set contentUrl = R2 path<br/>Set thumbnailUrl = R2 path (if exists)
-
-                    DrawingModel->>Database: UPDATE drawing
-                    Database-->>DrawingModel: Metadata updated
-                    DrawingModel-->>Worker: Return updated drawing
+                    Functions->>Database: db.drawing.update()
+                    Note over Functions: Update contentUrl, thumbnailUrl,<br/>updatedAt timestamp
+                    Database-->>Functions: Metadata updated
+                    Functions-->>Worker: Return updated drawing
 
                     Worker-->>Client: 200 OK<br/>JSON: { drawing, contentUrl, thumbnailUrl }
                 end
@@ -311,32 +312,34 @@ sequenceDiagram
     participant Worker
     participant SessionStore
     participant Database
-    participant DrawingModel
+    participant Functions as drawing/functions.ts
 
     Client->>Worker: GET /api/drawings
-    Note over Client,Worker: Optional query params:<br/>?archived=false<br/>?tag=sketch
+    Note over Client,Worker: Optional query params:<br/>?archived=false&tag=sketch&sortBy=updated
 
-    Worker->>SessionStore: Load session from request
+    Worker->>SessionStore: sessions.load(request)
     SessionStore-->>Worker: Return session data
 
     alt Session expired or invalid
-        Worker->>SessionStore: Remove session
+        Worker->>SessionStore: sessions.remove()
         Worker-->>Client: 302 Redirect to /login
     else Session valid
-        Worker->>Database: Find user by session.userId
+        Worker->>Database: db.user.findUnique()
         Database-->>Worker: Return user object
 
         alt User not found
             Worker-->>Client: 401 Unauthorized
         else User found
-            Worker->>DrawingModel: Query drawings
-            Note over DrawingModel: WHERE userId = user.id<br/>AND isArchived = false (if requested)<br/>AND tags CONTAINS tag (if requested)<br/>ORDER BY updatedAt DESC
+            Worker->>Functions: getUserDrawings(userId, options)
+            Note over Functions: Build query with filters:<br/>WHERE userId = user.id<br/>AND isArchived = false<br/>AND tags contains tag<br/>ORDER BY updatedAt DESC
 
-            DrawingModel->>Database: SELECT drawings
-            Database-->>DrawingModel: Return drawing records
-            DrawingModel-->>Worker: Return drawings array
+            Functions->>Database: db.drawing.findMany()
+            Database-->>Functions: Return drawing records
+            Functions->>Database: db.drawing.count()
+            Database-->>Functions: Return total count
+            Functions-->>Worker: Return { drawings, total }
 
-            Worker-->>Client: 200 OK<br/>JSON: { drawings: [...] }
+            Worker-->>Client: 200 OK<br/>JSON: { drawings: [...], total: N }
         end
     end
 ```

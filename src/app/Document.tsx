@@ -1,11 +1,19 @@
-export const Document: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => (
+import type { ReactNode } from "react";
+import globalStylesHref from "@/styles/globals.css?url";
+
+type DocumentProps = {
+  children: ReactNode;
+};
+
+export const Document = ({ children }: DocumentProps) => (
   <html lang="en">
     <head>
       <meta charSet="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>@redwoodjs/starter-standard</title>
+      {import.meta.env.DEV ? (
+        <link rel="stylesheet" href={globalStylesHref} precedence="high" />
+      ) : null}
       <link
         rel="icon"
         type="image/svg+xml"

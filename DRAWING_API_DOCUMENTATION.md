@@ -57,78 +57,77 @@ Creates a new drawing metadata record in the database with DRAFT status by defau
 
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant Worker
-    participant SessionStore
+    participant ClientComponent as Client Component
+    participant ServerFunction as createDrawing()
+    participant RequestInfo as requestInfo
     participant Database
-    participant Functions as drawing/functions.ts
 
-    Client->>Worker: POST /api/drawings
-    Note over Client,Worker: Request with metadata<br/>(title, description, tags)
+    ClientComponent->>ServerFunction: createDrawing(data)
+    Note over ClientComponent,ServerFunction: { title, description, tags }
 
-    Worker->>SessionStore: sessions.load(request)
-    SessionStore-->>Worker: Return session data
+    ServerFunction->>RequestInfo: requestInfo.ctx
+    RequestInfo-->>ServerFunction: { session, user }
 
-    alt Session expired or invalid
-        Worker->>SessionStore: sessions.remove()
-        Worker-->>Client: 302 Redirect to /login
-    else Session valid
-        Worker->>Database: db.user.findUnique()
-        Database-->>Worker: Return user object
+    alt User not authenticated
+        ServerFunction-->>ClientComponent: Error: Unauthorized
+    else User authenticated
+        ServerFunction->>ServerFunction: Generate UUID<br/>Validate input<br/>Set userId, title<br/>Set default values
 
-        alt User not found
-            Worker-->>Client: 401 Unauthorized
-        else User found
-            Worker->>Functions: createDrawing(data)
-            Note over Functions: Generate UUID<br/>Validate input<br/>Set userId, title<br/>Set default values
-
-            Functions->>Database: db.drawing.create()
-            Database-->>Functions: Drawing metadata saved
-            Functions-->>Worker: Return drawing object
-
-            Worker-->>Client: 201 Created<br/>JSON: { drawing }
-        end
+        ServerFunction->>Database: db.drawing.create()
+        Database-->>ServerFunction: Drawing metadata saved
+        ServerFunction-->>ClientComponent: Return drawing object
     end
 ```
 
-### Expected Request
+### Server Function Usage
 ```typescript
-POST /api/drawings
-Content-Type: application/json
+// From client component
+"use client";
+import { createDrawing } from '@/app/pages/drawing/functions';
 
-{
-  "title": "My Drawing",
-  "description": "Optional description",
-  "isPublic": false,
-  "tags": ["sketch", "diagram"]
+const drawing = await createDrawing({
+  title: "My Drawing",
+  description: "Optional description",
+  isPublic: false,
+  tags: ["sketch", "diagram"]
+});
+```
+
+### Function Signature
+```typescript
+// drawing/functions.ts
+"use server";
+import { requestInfo } from "rwsdk/worker";
+
+export async function createDrawing(data: CreateDrawingInput): Promise<Drawing> {
+  const { ctx } = requestInfo;
+  // Implementation...
 }
 ```
 
-### Expected Response
+### Return Value
 ```typescript
-201 Created
-
 {
-  "drawing": {
-    "id": "uuid-here",
-    "userId": "user-uuid",
-    "title": "My Drawing",
-    "description": "Optional description",
-    "contentUrl": null,  // No content stored yet
-    "thumbnailUrl": null,  // No thumbnail yet
-    "isPublic": false,
-    "isArchived": false,
-    "tags": ["sketch", "diagram"],
-    "createdAt": "2025-10-01T10:00:00.000Z",
-    "updatedAt": "2025-10-01T10:00:00.000Z",
-    "lastOpenedAt": null
-  }
+  "id": "uuid-here",
+  "userId": "user-uuid",
+  "title": "My Drawing",
+  "description": "Optional description",
+  "contentUrl": null,  // No content stored yet
+  "thumbnailUrl": null,  // No thumbnail yet
+  "isPublic": false,
+  "isArchived": false,
+  "tags": ["sketch", "diagram"],
+  "createdAt": "2025-10-01T10:00:00.000Z",
+  "updatedAt": "2025-10-01T10:00:00.000Z",
+  "lastOpenedAt": null
 }
 ```
 
 ### Notes
-- This API only creates the metadata record
-- Use the Save Drawing API (PUT /api/drawings/:id/save) to store actual content
+- Server functions with `"use server"` are automatically callable from client components
+- No explicit API routes needed in RedwoodSDK
+- This function only creates the metadata record
+- Use the `saveDrawingContent()` function to store actual content
 
 ### Drawing Data Model
 Based on `src/types/drawing.ts`:
@@ -170,47 +169,59 @@ Lightweight auto-save endpoint for frequent background saves during editing. Onl
 
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant Worker
-    participant Functions as drawing/functions.ts
+    participant ClientComponent as Client Component
+    participant ServerFunction as autoSaveDrawing()
+    participant RequestInfo as requestInfo
     participant R2Utils as lib/r2-storage.ts
     participant R2Bucket
 
-    Client->>Worker: PUT /api/drawings/:id/auto-save
-    Note over Client,Worker: Debounced request<br/>(content only, no metadata)
+    ClientComponent->>ServerFunction: autoSaveDrawing(drawingId, content)
+    Note over ClientComponent,ServerFunction: Debounced call<br/>(content only)
 
-    Worker->>Functions: autoSaveDrawing(drawingId, userId, content)
+    ServerFunction->>RequestInfo: requestInfo.ctx
+    RequestInfo-->>ServerFunction: { user }
 
-    Functions->>R2Utils: uploadDrawingContent(bucket, userId, drawingId, content)
+    ServerFunction->>R2Utils: uploadDrawingContent(bucket, userId, drawingId, content)
     Note over R2Utils: Quick R2 update<br/>No database write
     R2Utils->>R2Bucket: bucket.put(key, content)
     R2Bucket-->>R2Utils: Content saved
-    R2Utils-->>Functions: Return success
+    R2Utils-->>ServerFunction: Return success
 
-    Functions-->>Worker: Return { saved: true, timestamp }
-    Worker-->>Client: 200 OK<br/>JSON: { saved: true }
+    ServerFunction-->>ClientComponent: { saved: true, timestamp }
 ```
 
-### Expected Request
+### Server Function Usage
 ```typescript
-PUT /api/drawings/:id/auto-save
-Content-Type: application/json
+// From client component with debouncing
+"use client";
+import { autoSaveDrawing } from '@/app/pages/drawing/functions';
 
-{
-  "content": {
-    // Excalidraw JSON only
-    "type": "excalidraw",
-    "version": 2,
-    "elements": [...],
-    "appState": {...}
+const result = await autoSaveDrawing(
+  drawingId,
+  {
+    type: "excalidraw",
+    version: 2,
+    elements: [...],
+    appState: {...}
   }
+);
+```
+
+### Function Signature
+```typescript
+// drawing/functions.ts
+"use server";
+
+export async function autoSaveDrawing(
+  drawingId: string,
+  content: ExcalidrawData
+): Promise<{ saved: boolean; timestamp: Date }> {
+  // Implementation...
 }
 ```
 
-### Expected Response
+### Return Value
 ```typescript
-200 OK
-
 {
   "saved": true,
   "timestamp": "2025-10-01T10:15:30.000Z"
@@ -218,7 +229,7 @@ Content-Type: application/json
 ```
 
 ### Notes
-- No session/auth check needed (faster)
+- Uses `requestInfo.ctx` for user authentication
 - Only for DRAFT status drawings
 - No thumbnail generation
 - No metadata updates
@@ -235,94 +246,93 @@ Full manual save that updates both R2 content and D1 metadata. Handles large Exc
 
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant Worker
-    participant SessionStore
+    participant ClientComponent as Client Component
+    participant ServerFunction as saveDrawingContent()
+    participant RequestInfo as requestInfo
     participant Database
-    participant Functions as drawing/functions.ts
     participant R2Utils as lib/r2-storage.ts
     participant R2Bucket
 
-    Client->>Worker: PUT /api/drawings/:id/save
-    Note over Client,Worker: Request with drawing content<br/>(Excalidraw JSON, thumbnail)
+    ClientComponent->>ServerFunction: saveDrawingContent(drawingId, data)
+    Note over ClientComponent,ServerFunction: { content, thumbnail?, title?, description? }
 
-    Worker->>SessionStore: sessions.load(request)
-    SessionStore-->>Worker: Return session data
+    ServerFunction->>RequestInfo: requestInfo.ctx
+    RequestInfo-->>ServerFunction: { user }
 
-    alt Session expired or invalid
-        Worker->>SessionStore: sessions.remove()
-        Worker-->>Client: 302 Redirect to /login
-    else Session valid
-        Worker->>Database: db.user.findUnique()
-        Database-->>Worker: Return user object
+    ServerFunction->>Database: db.drawing.findUnique()
+    Database-->>ServerFunction: Return drawing record
 
-        alt User not found
-            Worker-->>Client: 401 Unauthorized
-        else User found
-            Worker->>Functions: getDrawing(drawingId, userId)
-            Functions->>Database: db.drawing.findUnique()
-            Database-->>Functions: Return drawing record
-            Functions-->>Worker: Return drawing metadata
+    alt Drawing not found or not owner
+        ServerFunction-->>ClientComponent: Error: Not Found/Forbidden
+    else User is owner
+        ServerFunction->>R2Utils: uploadDrawingContent(bucket, userId, drawingId, content)
+        Note over R2Utils: Key: drawing-content/{userId}/{drawingId}.json
+        R2Utils->>R2Bucket: bucket.put(key, JSON.stringify(content))
+        R2Bucket-->>R2Utils: Content stored
+        R2Utils-->>ServerFunction: Return contentUrl
 
-            alt Drawing not found
-                Worker-->>Client: 404 Not Found
-            else Drawing exists
-                alt User is not owner
-                    Worker-->>Client: 403 Forbidden
-                else User is owner
-                    Worker->>Functions: saveDrawingContent(drawingId, userId, data)
-
-                    Functions->>R2Utils: uploadDrawingContent(bucket, userId, drawingId, content)
-                    Note over R2Utils: Prepare key:<br/>drawing-content/{userId}/{drawingId}.json
-                    R2Utils->>R2Bucket: bucket.put(key, JSON.stringify(content))
-                    R2Bucket-->>R2Utils: Content stored
-                    R2Utils-->>Functions: Return contentUrl
-
-                    alt Thumbnail provided
-                        Functions->>R2Utils: uploadThumbnail(bucket, userId, drawingId, thumbnail)
-                        Note over R2Utils: Convert base64 to binary<br/>Key: drawing-thumbnails/{userId}/{drawingId}.png
-                        R2Utils->>R2Bucket: bucket.put(key, imageBuffer)
-                        R2Bucket-->>R2Utils: Thumbnail stored
-                        R2Utils-->>Functions: Return thumbnailUrl
-                    end
-
-                    Functions->>Database: db.drawing.update()
-                    Note over Functions: Update contentUrl, thumbnailUrl,<br/>updatedAt timestamp
-                    Database-->>Functions: Metadata updated
-                    Functions-->>Worker: Return updated drawing
-
-                    Worker-->>Client: 200 OK<br/>JSON: { drawing, contentUrl, thumbnailUrl }
-                end
-            end
+        alt Thumbnail provided
+            ServerFunction->>R2Utils: uploadThumbnail(bucket, userId, drawingId, thumbnail)
+            Note over R2Utils: Convert base64 to binary<br/>Key: drawing-thumbnails/{userId}/{drawingId}.png
+            R2Utils->>R2Bucket: bucket.put(key, imageBuffer)
+            R2Bucket-->>R2Utils: Thumbnail stored
+            R2Utils-->>ServerFunction: Return thumbnailUrl
         end
+
+        ServerFunction->>Database: db.drawing.update()
+        Note over ServerFunction: Update contentUrl, thumbnailUrl,<br/>title, description, updatedAt
+        Database-->>ServerFunction: Metadata updated
+        ServerFunction-->>ClientComponent: { drawing, contentUrl, thumbnailUrl }
     end
 ```
 
-### Expected Request
+### Server Function Usage
 ```typescript
-PUT /api/drawings/:id/save
-Content-Type: application/json
+// From client component
+"use client";
+import { saveDrawingContent } from '@/app/pages/drawing/functions';
 
-{
-  "content": {
-    // Full Excalidraw JSON data
-    "type": "excalidraw",
-    "version": 2,
-    "source": "...",
-    "elements": [...],
-    "appState": {...},
-    "files": {...}
+const result = await saveDrawingContent(drawingId, {
+  content: {
+    type: "excalidraw",
+    version: 2,
+    source: "...",
+    elements: [...],
+    appState: {...},
+    files: {...}
   },
-  "thumbnail": "data:image/png;base64,...", // Optional base64 thumbnail
-  "title": "Updated Title", // Optional - update title while saving
-  "description": "Updated description" // Optional
+  thumbnail: "data:image/png;base64,...", // Optional
+  title: "Updated Title", // Optional
+  description: "Updated description" // Optional
+});
+```
+
+### Function Signature
+```typescript
+// drawing/functions.ts
+"use server";
+import { requestInfo } from "rwsdk/worker";
+
+export async function saveDrawingContent(
+  drawingId: string,
+  data: {
+    content: ExcalidrawData;
+    thumbnail?: string;
+    title?: string;
+    description?: string;
+  }
+): Promise<{
+  drawing: Drawing;
+  contentUrl: string;
+  thumbnailUrl?: string;
+}> {
+  const { ctx } = requestInfo;
+  // Implementation...
 }
 ```
 
-### Expected Response
+### Return Value
 ```typescript
-200 OK
-
 {
   "drawing": {
     "id": "uuid-here",
@@ -396,20 +406,44 @@ R2 Bucket: excalidraw-drawings
 
 ---
 
-## 4. Get Drawing Content API
+## 4. Get Drawing Content
 
 ### Purpose
 Fetches the actual Excalidraw JSON content from R2 storage. Used when opening a drawing in the editor.
 
-### Expected Request
+### Server Function Usage
 ```typescript
-GET /api/drawings/:id/content
+// From client component
+"use client";
+import { getDrawingContent } from '@/app/pages/drawing/functions';
+
+const result = await getDrawingContent(drawingId);
 ```
 
-### Expected Response
+### Function Signature
 ```typescript
-200 OK
+// drawing/functions.ts
+"use server";
+import { requestInfo } from "rwsdk/worker";
 
+export async function getDrawingContent(
+  drawingId: string
+): Promise<{
+  content: ExcalidrawData;
+  drawing: {
+    id: string;
+    title: string;
+    status: DrawingStatus;
+    updatedAt: Date;
+  };
+}> {
+  const { ctx } = requestInfo;
+  // Implementation...
+}
+```
+
+### Return Value
+```typescript
 {
   "content": {
     "type": "excalidraw",
@@ -430,61 +464,91 @@ GET /api/drawings/:id/content
 
 ---
 
-## 5. Update Drawing Metadata API
+## 5. Update Drawing Metadata
 
 ### Purpose
 Updates only metadata fields (title, description, tags) without touching R2 content. Fast operation for renaming or organizing drawings.
 
-### Expected Request
+### Server Function Usage
 ```typescript
-PATCH /api/drawings/:id
-Content-Type: application/json
+// From client component
+"use client";
+import { updateDrawingMetadata } from '@/app/pages/drawing/functions';
 
-{
-  "title": "Updated Title",
-  "description": "New description",
-  "tags": ["updated", "tags"]
+const drawing = await updateDrawingMetadata(drawingId, {
+  title: "Updated Title",
+  description: "New description",
+  tags: ["updated", "tags"]
+});
+```
+
+### Function Signature
+```typescript
+// drawing/functions.ts
+"use server";
+import { requestInfo } from "rwsdk/worker";
+
+export async function updateDrawingMetadata(
+  drawingId: string,
+  updates: {
+    title?: string;
+    description?: string;
+    tags?: string[];
+  }
+): Promise<Drawing> {
+  const { ctx } = requestInfo;
+  // Implementation...
 }
 ```
 
-### Expected Response
+### Return Value
 ```typescript
-200 OK
-
 {
-  "drawing": {
-    "id": "uuid-here",
-    "title": "Updated Title",
-    "description": "New description",
-    "tags": ["updated", "tags"],
-    "updatedAt": "2025-10-01T10:20:00.000Z"
-  }
+  "id": "uuid-here",
+  "title": "Updated Title",
+  "description": "New description",
+  "tags": ["updated", "tags"],
+  "updatedAt": "2025-10-01T10:20:00.000Z"
+  // ... other drawing fields
 }
 ```
 
 ---
 
-## 6. Publish Drawing API
+## 6. Publish Drawing
 
 ### Purpose
 Converts a DRAFT drawing to PUBLISHED status, making it ready for sharing (future feature).
 
-### Expected Request
+### Server Function Usage
 ```typescript
-PUT /api/drawings/:id/publish
+// From client component
+"use client";
+import { publishDrawing } from '@/app/pages/drawing/functions';
+
+const drawing = await publishDrawing(drawingId);
 ```
 
-### Expected Response
+### Function Signature
 ```typescript
-200 OK
+// drawing/functions.ts
+"use server";
+import { requestInfo } from "rwsdk/worker";
 
+export async function publishDrawing(drawingId: string): Promise<Drawing> {
+  const { ctx } = requestInfo;
+  // Implementation...
+}
+```
+
+### Return Value
+```typescript
 {
-  "drawing": {
-    "id": "uuid-here",
-    "status": "PUBLISHED",
-    "publishedAt": "2025-10-01T10:25:00.000Z",
-    "updatedAt": "2025-10-01T10:25:00.000Z"
-  }
+  "id": "uuid-here",
+  "status": "PUBLISHED",
+  "publishedAt": "2025-10-01T10:25:00.000Z",
+  "updatedAt": "2025-10-01T10:25:00.000Z"
+  // ... other drawing fields
 }
 ```
 
@@ -495,26 +559,39 @@ PUT /api/drawings/:id/publish
 
 ---
 
-## 7. Archive Drawing API
+## 7. Archive Drawing
 
 ### Purpose
 Moves a drawing to ARCHIVED status, hiding it from default views but keeping it accessible.
 
-### Expected Request
+### Server Function Usage
 ```typescript
-PUT /api/drawings/:id/archive
+// From client component
+"use client";
+import { archiveDrawing } from '@/app/pages/drawing/functions';
+
+const drawing = await archiveDrawing(drawingId);
 ```
 
-### Expected Response
+### Function Signature
 ```typescript
-200 OK
+// drawing/functions.ts
+"use server";
+import { requestInfo } from "rwsdk/worker";
 
+export async function archiveDrawing(drawingId: string): Promise<Drawing> {
+  const { ctx } = requestInfo;
+  // Implementation...
+}
+```
+
+### Return Value
+```typescript
 {
-  "drawing": {
-    "id": "uuid-here",
-    "status": "ARCHIVED",
-    "updatedAt": "2025-10-01T10:30:00.000Z"
-  }
+  "id": "uuid-here",
+  "status": "ARCHIVED",
+  "updatedAt": "2025-10-01T10:30:00.000Z"
+  // ... other drawing fields
 }
 ```
 
@@ -524,7 +601,7 @@ PUT /api/drawings/:id/archive
 
 ---
 
-## 8. List Drawings API
+## 8. List Drawings
 
 ### Purpose
 Retrieves all drawings belonging to the authenticated user with status-based filtering.
@@ -533,55 +610,68 @@ Retrieves all drawings belonging to the authenticated user with status-based fil
 
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant Worker
-    participant SessionStore
+    participant ClientComponent as Client Component
+    participant ServerFunction as getUserDrawings()
+    participant RequestInfo as requestInfo
     participant Database
-    participant Functions as drawing/functions.ts
 
-    Client->>Worker: GET /api/drawings
-    Note over Client,Worker: Optional query params:<br/>?status=DRAFT&tag=sketch&sortBy=updated
+    ClientComponent->>ServerFunction: getUserDrawings(options?)
+    Note over ClientComponent,ServerFunction: Optional: { status, tag, sortBy }
 
-    Worker->>SessionStore: sessions.load(request)
-    SessionStore-->>Worker: Return session data
+    ServerFunction->>RequestInfo: requestInfo.ctx
+    RequestInfo-->>ServerFunction: { user }
 
-    alt Session expired or invalid
-        Worker->>SessionStore: sessions.remove()
-        Worker-->>Client: 302 Redirect to /login
-    else Session valid
-        Worker->>Database: db.user.findUnique()
-        Database-->>Worker: Return user object
+    alt User not authenticated
+        ServerFunction-->>ClientComponent: Error: Unauthorized
+    else User authenticated
+        ServerFunction->>ServerFunction: Build query with filters:<br/>WHERE userId = user.id<br/>AND status (if specified)<br/>AND tags contains tag<br/>ORDER BY sortBy field
 
-        alt User not found
-            Worker-->>Client: 401 Unauthorized
-        else User found
-            Worker->>Functions: getUserDrawings(userId, options)
-            Note over Functions: Build query with filters:<br/>WHERE userId = user.id<br/>AND status = DRAFT (if requested)<br/>AND tags contains tag<br/>ORDER BY updatedAt DESC
-
-            Functions->>Database: db.drawing.findMany()
-            Database-->>Functions: Return drawing records
-            Functions->>Database: db.drawing.count()
-            Database-->>Functions: Return total count
-            Functions-->>Worker: Return { drawings, total }
-
-            Worker-->>Client: 200 OK<br/>JSON: { drawings: [...], total: N }
-        end
+        ServerFunction->>Database: db.drawing.findMany()
+        Database-->>ServerFunction: Return drawing records
+        ServerFunction->>Database: db.drawing.count()
+        Database-->>ServerFunction: Return total count
+        ServerFunction-->>ClientComponent: { drawings, total }
     end
 ```
 
-### Expected Request
+### Server Function Usage
 ```typescript
-GET /api/drawings
-// or with filters
-GET /api/drawings?status=DRAFT&tag=sketch&sortBy=updated
-GET /api/drawings?status=PUBLISHED
-GET /api/drawings/drafts  // Shorthand for ?status=DRAFT
+// From client component
+"use client";
+import { getUserDrawings } from '@/app/pages/drawing/functions';
+
+// All drawings
+const result = await getUserDrawings();
+
+// With filters
+const drafts = await getUserDrawings({
+  status: 'DRAFT',
+  tag: 'sketch',
+  sortBy: 'updated'
+});
 ```
 
-### Expected Response
+### Function Signature
 ```typescript
-200 OK
+// drawing/functions.ts
+"use server";
+import { requestInfo } from "rwsdk/worker";
 
+export async function getUserDrawings(options?: {
+  status?: DrawingStatus;
+  tag?: string;
+  sortBy?: 'updated' | 'created' | 'title';
+}): Promise<{
+  drawings: Drawing[];
+  total: number;
+}> {
+  const { ctx } = requestInfo;
+  // Implementation...
+}
+```
+
+### Return Value
+```typescript
 {
   "drawings": [
     {
@@ -619,46 +709,58 @@ GET /api/drawings/drafts  // Shorthand for ?status=DRAFT
 ```
 
 ### Notes
-- This API returns only metadata, not the actual drawing content
-- To load a drawing's content, fetch from R2 using the `contentUrl`
+- Returns only metadata, not the actual drawing content
+- Use `getDrawingContent()` to load content from R2
 - Thumbnails can be loaded directly from `thumbnailUrl` for preview
 - Supports status-based filtering for organizing drawings
 
 ---
 
-## 9. Duplicate Drawing API
+## 9. Duplicate Drawing
 
 ### Purpose
 Creates a copy of an existing drawing with all content and metadata. New drawing starts as DRAFT.
 
-### Expected Request
+### Server Function Usage
 ```typescript
-POST /api/drawings/:id/duplicate
-Content-Type: application/json
+// From client component
+"use client";
+import { duplicateDrawing } from '@/app/pages/drawing/functions';
 
-{
-  "title": "Copy of Original Title"  // Optional, defaults to "Copy of {original}"
+const newDrawing = await duplicateDrawing(drawingId, {
+  title: "Copy of Original Title"  // Optional
+});
+```
+
+### Function Signature
+```typescript
+// drawing/functions.ts
+"use server";
+import { requestInfo } from "rwsdk/worker";
+
+export async function duplicateDrawing(
+  drawingId: string,
+  options?: { title?: string }
+): Promise<Drawing> {
+  const { ctx } = requestInfo;
+  // Implementation...
 }
 ```
 
-### Expected Response
+### Return Value
 ```typescript
-201 Created
-
 {
-  "drawing": {
-    "id": "new-uuid-here",
-    "userId": "user-uuid",
-    "title": "Copy of Original Title",
-    "description": "Same as original",
-    "contentUrl": "drawing-content/user-uuid/new-uuid-here.json",
-    "thumbnailUrl": "drawing-thumbnails/user-uuid/new-uuid-here.png",
-    "status": "DRAFT",
-    "isPublic": false,
-    "tags": ["sketch"],
-    "createdAt": "2025-10-01T11:00:00.000Z",
-    "updatedAt": "2025-10-01T11:00:00.000Z"
-  }
+  "id": "new-uuid-here",
+  "userId": "user-uuid",
+  "title": "Copy of Original Title",
+  "description": "Same as original",
+  "contentUrl": "drawing-content/user-uuid/new-uuid-here.json",
+  "thumbnailUrl": "drawing-thumbnails/user-uuid/new-uuid-here.png",
+  "status": "DRAFT",
+  "isPublic": false,
+  "tags": ["sketch"],
+  "createdAt": "2025-10-01T11:00:00.000Z",
+  "updatedAt": "2025-10-01T11:00:00.000Z"
 }
 ```
 
@@ -667,10 +769,11 @@ Content-Type: application/json
 - New drawing always starts as DRAFT
 - New UUID generated for copy
 - R2 files are duplicated
+- Defaults title to "Copy of {original}" if not provided
 
 ---
 
-## 10. Delete Drawing API
+## 10. Delete Drawing
 
 ### Purpose
 Permanently deletes a drawing from both D1 database and R2 storage.
@@ -679,25 +782,25 @@ Permanently deletes a drawing from both D1 database and R2 storage.
 
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant Worker
-    participant Functions as drawing/functions.ts
+    participant ClientComponent as Client Component
+    participant ServerFunction as deleteDrawing()
+    participant RequestInfo as requestInfo
     participant Database
     participant R2Utils as lib/r2-storage.ts
     participant R2Bucket
 
-    Client->>Worker: DELETE /api/drawings/:id
+    ClientComponent->>ServerFunction: deleteDrawing(drawingId)
 
-    Worker->>Functions: deleteDrawing(drawingId, userId)
+    ServerFunction->>RequestInfo: requestInfo.ctx
+    RequestInfo-->>ServerFunction: { user }
 
-    Functions->>Database: db.drawing.findUnique()
-    Note over Functions: Verify ownership
+    ServerFunction->>Database: db.drawing.findUnique()
+    Note over ServerFunction: Verify ownership
 
-    alt User is not owner
-        Functions-->>Worker: Error: Forbidden
-        Worker-->>Client: 403 Forbidden
+    alt Drawing not found or not owner
+        ServerFunction-->>ClientComponent: Error: Not Found/Forbidden
     else User is owner
-        Functions->>R2Utils: deleteDrawingFiles(bucket, userId, drawingId)
+        ServerFunction->>R2Utils: deleteDrawingFiles(bucket, userId, drawingId)
 
         R2Utils->>R2Bucket: bucket.delete(contentKey)
         R2Bucket-->>R2Utils: Content deleted
@@ -705,24 +808,39 @@ sequenceDiagram
         R2Utils->>R2Bucket: bucket.delete(thumbnailKey)
         R2Bucket-->>R2Utils: Thumbnail deleted
 
-        R2Utils-->>Functions: R2 cleanup complete
+        R2Utils-->>ServerFunction: R2 cleanup complete
 
-        Functions->>Database: db.drawing.delete()
-        Database-->>Functions: Record deleted
-        Functions-->>Worker: Return success
-
-        Worker-->>Client: 204 No Content
+        ServerFunction->>Database: db.drawing.delete()
+        Database-->>ServerFunction: Record deleted
+        ServerFunction-->>ClientComponent: void (success)
     end
 ```
 
-### Expected Request
+### Server Function Usage
 ```typescript
-DELETE /api/drawings/:id
+// From client component
+"use client";
+import { deleteDrawing } from '@/app/pages/drawing/functions';
+
+await deleteDrawing(drawingId);
 ```
 
-### Expected Response
+### Function Signature
 ```typescript
-204 No Content
+// drawing/functions.ts
+"use server";
+import { requestInfo } from "rwsdk/worker";
+
+export async function deleteDrawing(drawingId: string): Promise<void> {
+  const { ctx } = requestInfo;
+  // Implementation...
+}
+```
+
+### Return Value
+```typescript
+// Function returns void, throws error if deletion fails
+void
 ```
 
 ### Notes
@@ -731,6 +849,7 @@ DELETE /api/drawings/:id
 - Verifies user ownership before deletion
 - R2 cleanup happens before database deletion
 - If R2 deletion fails, database record is kept
+- Throws error if user doesn't own the drawing
 
 ---
 
@@ -880,42 +999,29 @@ Add `Drawing` model to `prisma/schema.prisma` with hybrid storage fields:
 npx prisma migrate dev --name add_drawing_model_with_r2
 ```
 
-### 3. Create Backend Functions
-Create `src/app/pages/drawing/functions.ts`:
+### 3. Create Server Functions
+Create `src/app/pages/drawing/functions.ts` with `"use server"` directive:
 - `createDrawing(data)` - Create metadata in D1 with DRAFT status
-- `autoSaveDrawing(drawingId, userId, content)` - Quick R2 update only
-- `saveDrawingContent(drawingId, userId, data)` - Save content to R2 + update metadata
-- `getDrawing(drawingId, userId)` - Fetch metadata from D1
-- `getDrawingContent(drawingId, userId)` - Fetch content from R2
-- `getUserDrawings(userId, options)` - List metadata from D1 with status filters
-- `updateDrawingMetadata(drawingId, userId, updates)` - Update title, description, tags
-- `publishDrawing(drawingId, userId)` - Change status to PUBLISHED
-- `archiveDrawing(drawingId, userId)` - Change status to ARCHIVED
-- `duplicateDrawing(drawingId, userId, title?)` - Copy drawing with new UUID
-- `deleteDrawing(drawingId, userId)` - Delete from both D1 and R2
+- `autoSaveDrawing(drawingId, content)` - Quick R2 update only
+- `saveDrawingContent(drawingId, data)` - Save content to R2 + update metadata
+- `getDrawing(drawingId)` - Fetch metadata from D1
+- `getDrawingContent(drawingId)` - Fetch content from R2
+- `getUserDrawings(options?)` - List metadata from D1 with status filters
+- `updateDrawingMetadata(drawingId, updates)` - Update title, description, tags
+- `publishDrawing(drawingId)` - Change status to PUBLISHED
+- `archiveDrawing(drawingId)` - Change status to ARCHIVED
+- `duplicateDrawing(drawingId, options?)` - Copy drawing with new UUID
+- `deleteDrawing(drawingId)` - Delete from both D1 and R2
 
-### 4. Create API Routes
-Create `src/app/pages/drawing/routes.ts`:
-- POST `/api/drawings` - Create new drawing (DRAFT by default)
-- PUT `/api/drawings/:id/auto-save` - Auto-save content only
-- PUT `/api/drawings/:id/save` - Full save with metadata
-- GET `/api/drawings/:id/content` - Get drawing content from R2
-- PATCH `/api/drawings/:id` - Update metadata only
-- PUT `/api/drawings/:id/publish` - Publish drawing
-- PUT `/api/drawings/:id/archive` - Archive drawing
-- GET `/api/drawings` - List all drawings with status filters
-- GET `/api/drawings/drafts` - List drafts only (shorthand)
-- POST `/api/drawings/:id/duplicate` - Duplicate drawing
-- DELETE `/api/drawings/:id` - Delete drawing permanently
+**Note:** No route definitions needed - server functions are automatically callable from client components.
 
-### 5. Update Worker Configuration
+### 4. Update Worker Configuration
 Update `src/worker.tsx` to:
-- Import and register drawing routes
-- Add R2 bucket to context
-- Handle R2 storage errors
+- Add R2 bucket to context (via env bindings)
+- Handle R2 storage errors in middleware
 
-### 6. Create R2 Helper Utilities
-Create `src/lib/r2-storage.ts`:
+### 5. Create R2 Helper Utilities
+Create `src/lib/r2-storage.ts` for R2 operations (called from server functions):
 ```typescript
 export async function uploadDrawingContent(
   bucket: R2Bucket,
@@ -943,7 +1049,7 @@ export async function deleteDrawingFiles(
 ): Promise<void>
 ```
 
-### 7. Update TypeScript Types
+### 6. Update TypeScript Types
 Update `src/types/drawing.ts` to match the draft-first hybrid storage model:
 - Change `content: string` to `contentUrl?: string | null`
 - Add `thumbnailUrl?: string | null`
@@ -951,7 +1057,7 @@ Update `src/types/drawing.ts` to match the draft-first hybrid storage model:
 - Add `publishedAt?: Date | null`
 - Remove `isArchived` (replaced by status)
 
-### 8. Update UI Components
+### 7. Update UI Components
 - Modify `DrawingCard.tsx` to show status badge (DRAFT/PUBLISHED/ARCHIVED)
 - Use `thumbnailUrl` from R2 for previews
 - Create loading states for R2 content fetching
@@ -959,7 +1065,7 @@ Update `src/types/drawing.ts` to match the draft-first hybrid storage model:
 - Add "Auto-saving..." indicator for drafts
 - Show published date for PUBLISHED drawings
 
-### 9. Testing
+### 8. Testing
 - Test draft creation and auto-save flow
 - Test publish workflow (DRAFT → PUBLISHED)
 - Test archive workflow (any status → ARCHIVED)
@@ -971,35 +1077,36 @@ Update `src/types/drawing.ts` to match the draft-first hybrid storage model:
 - Test error handling for R2 failures
 - Test large file uploads (up to 10MB)
 
-### 10. Integration with Excalidraw
-- Load drawing content from R2 when opening editor
-- Implement auto-save with debouncing (3-5 seconds)
+### 9. Integration with Excalidraw
+- Load drawing content from R2 when opening editor using `getDrawingContent()`
+- Implement auto-save with debouncing (3-5 seconds) calling `autoSaveDrawing()`
 - Show save status indicator ("Saving...", "Saved", "Draft")
 - Handle offline scenarios gracefully
-- Provide "Publish" button for DRAFT drawings
+- Provide "Publish" button for DRAFT drawings calling `publishDrawing()`
 - Show draft badge in editor UI
-- Prevent auto-save for PUBLISHED drawings (require manual save)
+- Prevent auto-save for PUBLISHED drawings (require manual save via `saveDrawingContent()`)
 
 ---
 
-## API Summary Table
+## Server Functions Summary Table
 
-| Method | Endpoint | Purpose | Auth | Status Impact |
-|--------|----------|---------|------|---------------|
-| POST | `/api/drawings` | Create new drawing | ✓ | Creates as DRAFT |
-| PUT | `/api/drawings/:id/auto-save` | Auto-save content only | ✓ | No change |
-| PUT | `/api/drawings/:id/save` | Full save with metadata | ✓ | No change |
-| GET | `/api/drawings/:id/content` | Get drawing content | ✓ | No change |
-| PATCH | `/api/drawings/:id` | Update metadata | ✓ | No change |
-| PUT | `/api/drawings/:id/publish` | Publish drawing | ✓ | DRAFT → PUBLISHED |
-| PUT | `/api/drawings/:id/archive` | Archive drawing | ✓ | any → ARCHIVED |
-| GET | `/api/drawings` | List drawings | ✓ | Filter by status |
-| GET | `/api/drawings/drafts` | List drafts only | ✓ | Filter DRAFT |
-| POST | `/api/drawings/:id/duplicate` | Duplicate drawing | ✓ | Copy as DRAFT |
-| DELETE | `/api/drawings/:id` | Delete permanently | ✓ | Removes record |
+| Function | Purpose | Auth | Status Impact |
+|----------|---------|------|---------------|
+| `createDrawing(data)` | Create new drawing | ✓ | Creates as DRAFT |
+| `autoSaveDrawing(drawingId, content)` | Auto-save content only | ✓ | No change |
+| `saveDrawingContent(drawingId, data)` | Full save with metadata | ✓ | No change |
+| `getDrawingContent(drawingId)` | Get drawing content | ✓ | No change |
+| `updateDrawingMetadata(drawingId, updates)` | Update metadata | ✓ | No change |
+| `publishDrawing(drawingId)` | Publish drawing | ✓ | DRAFT → PUBLISHED |
+| `archiveDrawing(drawingId)` | Archive drawing | ✓ | any → ARCHIVED |
+| `getUserDrawings(options?)` | List drawings | ✓ | Filter by status |
+| `duplicateDrawing(drawingId, options?)` | Duplicate drawing | ✓ | Copy as DRAFT |
+| `deleteDrawing(drawingId)` | Delete permanently | ✓ | Removes record |
+
+**Note:** All functions require authentication via `requestInfo.ctx`. User context is automatically available in server functions marked with `"use server"` directive. No HTTP endpoints needed - client components call these functions directly.
 
 ---
 
-**Document Version:** 3.0
-**Last Updated:** 2025-10-01
+**Document Version:** 4.0 (Updated for RedwoodSDK Server Functions)
+**Last Updated:** 2025-10-02
 **Author:** Claude Code

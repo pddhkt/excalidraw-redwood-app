@@ -14,8 +14,27 @@ const meta: Meta<typeof Login> = {
 export default meta;
 type Story = StoryObj<typeof Login>;
 
-// Default login page
+// Default login page with full background
 export const Default: Story = {};
+
+// Login form only - focused view for component development
+export const LoginForm: Story = {
+  render: () => {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Login />
+      </div>
+    );
+  },
+  parameters: {
+    layout: 'centered',
+    docs: {
+      description: {
+        story: 'Shows the login form in a centered view without the full-page background, perfect for testing and development.',
+      },
+    },
+  },
+};
 
 // Story showing the login form in a ready state
 export const ReadyToLogin: Story = {

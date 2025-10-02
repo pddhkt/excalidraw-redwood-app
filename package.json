@@ -34,7 +34,9 @@
     "test:coverage": "vitest --coverage",
     "test:watch": "vitest --watch",
     "test:run": "vitest run",
-    "prepare": "vibe-rules install cursor"
+    "prepare": "vibe-rules install cursor",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
   },
   "dependencies": {
     "@prisma/adapter-d1": "6.8.2",
@@ -76,7 +78,14 @@
     "vibe-rules": "0.2.31",
     "vite": "7.1.6",
     "vitest": "^2.1.1",
-    "wrangler": "4.38.0"
+    "wrangler": "4.38.0",
+    "storybook": "^9.1.10",
+    "@storybook/react-vite": "^9.1.10",
+    "@chromatic-com/storybook": "^4.1.1",
+    "@storybook/addon-docs": "^9.1.10",
+    "@storybook/addon-onboarding": "^9.1.10",
+    "@storybook/addon-a11y": "^9.1.10",
+    "@storybook/addon-vitest": "^9.1.10"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

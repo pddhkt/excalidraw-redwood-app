@@ -1,15 +1,22 @@
+export enum DrawingStatus {
+  DRAFT = 'DRAFT',
+  PUBLISHED = 'PUBLISHED',
+  ARCHIVED = 'ARCHIVED'
+}
+
 export interface Drawing {
   id: string
   userId: string
   title: string
   description?: string | null
-  content: string // JSON string of Excalidraw data
-  thumbnail?: string | null // Base64 or URL for preview
+  contentUrl?: string | null // R2 path to drawing JSON (not the full content)
+  thumbnailUrl?: string | null // R2 path to thumbnail image
+  status: DrawingStatus
   isPublic: boolean
-  isArchived?: boolean
   tags?: string[]
   createdAt: Date
   updatedAt: Date
+  publishedAt?: Date | null // When status changed to PUBLISHED
   lastOpenedAt?: Date | null
 }
 

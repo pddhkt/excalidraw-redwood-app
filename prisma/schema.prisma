@@ -36,6 +36,7 @@ model User {
   lastActivity DateTime   @default(now())
 
   credentials Credential[] // Relationship: One user can have many credentials
+  drawings    Drawing[]    // Relationship: One user can have many drawings
 }
 
 model Credential {
@@ -46,7 +47,40 @@ model Credential {
   credentialId  String   @unique // WebAuthn credential identifier
   publicKey     Bytes
   counter       Int      @default(0)
-  
+
   @@index([credentialId])
   @@index([userId])
+}
+
+enum DrawingStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model Drawing {
+  id           String        @id @default(uuid())
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Metadata only (stored in D1)
+  title        String
+  description  String?
+  contentUrl   String?       // R2 path: drawing-content/{userId}/{drawingId}.json
+  thumbnailUrl String?       // R2 path: drawing-thumbnails/{userId}/{drawingId}.png
+
+  // Status and Settings
+  status       DrawingStatus @default(DRAFT)
+  isPublic     Boolean       @default(false)
+  tags         String?       // SQLite stores as JSON string
+
+  // Timestamps
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  publishedAt  DateTime?     // Set when status changes to PUBLISHED
+  lastOpenedAt DateTime?
+
+  @@index([userId, status, updatedAt])
+  @@index([userId, status])
+  @@index([isPublic])
 }

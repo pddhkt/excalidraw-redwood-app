@@ -36,5 +36,11 @@
       "database_name": "excalidraw-redwood-app-db",
       "database_id": "d9fc960d-070e-46cd-915a-8cdcbc97d9e2"
     }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "DRAWINGS_BUCKET",
+      "bucket_name": "excalidraw-drawings"
+    }
   ]
 }

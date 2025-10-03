@@ -1,5 +1,5 @@
 import { route } from "rwsdk/router";
-import { Login } from "./Login";
+import { LoginMinimal as Login } from "./LoginMinimal";
 import { sessions } from "@/session/store";
 
 export const authRoutes = [

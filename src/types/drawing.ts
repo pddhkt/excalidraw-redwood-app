@@ -42,3 +42,39 @@ export interface CreateDrawingFormProps {
   loading?: boolean
   className?: string
 }
+
+// Re-export Excalidraw types for convenience
+export type {
+  ExcalidrawElement,
+  AppState,
+  BinaryFiles,
+  ExcalidrawImperativeAPI,
+} from '@excalidraw/excalidraw/types/types'
+
+// Excalidraw scene data structure
+export interface ExcalidrawScene {
+  elements: readonly ExcalidrawElement[]
+  appState?: Partial<AppState>
+  files?: BinaryFiles
+}
+
+// Editor props for the Excalidraw wrapper component
+export interface ExcalidrawEditorProps {
+  initialData?: ExcalidrawScene
+  onChange?: (elements: readonly ExcalidrawElement[], appState: AppState, files: BinaryFiles) => void
+  onAutoSave?: (elements: readonly ExcalidrawElement[], appState: AppState, files: BinaryFiles) => void
+  autoSaveInterval?: number
+  viewModeEnabled?: boolean
+  gridModeEnabled?: boolean
+  theme?: 'light' | 'dark'
+  className?: string
+  isLoading?: boolean
+  error?: string
+}
+
+// Import these types to avoid circular dependencies
+import type {
+  ExcalidrawElement,
+  AppState,
+  BinaryFiles,
+} from '@excalidraw/excalidraw/types/types'

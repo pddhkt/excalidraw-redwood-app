@@ -27,25 +27,33 @@ export function Home({ ctx }: RequestInfo) {
           </p>
 
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {/* Placeholder cards for future features */}
-            <div className="border rounded-lg p-6 hover:shadow-lg transition-shadow">
+            {/* My Drawings - Navigate to drawings list */}
+            <a
+              href="/drawings"
+              className="border rounded-lg p-6 hover:shadow-lg transition-shadow cursor-pointer block"
+            >
               <h3 className="font-semibold mb-2">My Drawings</h3>
               <p className="text-sm text-muted-foreground">
                 View and manage your saved drawings
               </p>
-            </div>
+            </a>
 
-            <div className="border rounded-lg p-6 hover:shadow-lg transition-shadow">
+            {/* New Drawing - Navigate to create page */}
+            <a
+              href="/drawing/create"
+              className="border rounded-lg p-6 hover:shadow-lg transition-shadow cursor-pointer block"
+            >
               <h3 className="font-semibold mb-2">New Drawing</h3>
               <p className="text-sm text-muted-foreground">
                 Start a new diagram from scratch
               </p>
-            </div>
+            </a>
 
-            <div className="border rounded-lg p-6 hover:shadow-lg transition-shadow">
+            {/* Templates - Coming soon */}
+            <div className="border rounded-lg p-6 hover:shadow-lg transition-shadow opacity-50">
               <h3 className="font-semibold mb-2">Templates</h3>
               <p className="text-sm text-muted-foreground">
-                Browse diagram templates
+                Browse diagram templates (coming soon)
               </p>
             </div>
           </div>

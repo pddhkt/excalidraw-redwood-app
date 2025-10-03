@@ -6,6 +6,8 @@ import { Home } from "@/app/pages/Home";
 import { setCommonHeaders } from "@/app/headers";
 import { authRoutes } from "@/app/pages/auth/routes";
 import { testRoutes } from "@/app/pages/test/routes";
+import { drawingRoutes } from "@/app/pages/drawing/routes";
+import { devRoutes } from "@/app/pages/dev/routes";
 import { sessions, setupSessionStore } from "./session/store";
 import { Session } from "./session/durableObject";
 import { type User, db, setupDb } from "@/db";
@@ -24,6 +26,36 @@ export default defineApp([
     await setupDb(env);
     setupSessionStore(env);
 
+    // Development session bypass: Check for dev session cookie
+    const devSessionToken = env.DEV_SESSION_TOKEN;
+    const devUsername = env.DEV_USERNAME;
+    if (devSessionToken && devUsername) {
+      const cookies = request.headers.get("Cookie") || "";
+      const devSessionCookie = cookies
+        .split(";")
+        .find((c) => c.trim().startsWith("dev_session="));
+      const devSessionValue = devSessionCookie?.split("=")[1];
+
+      if (devSessionValue === devSessionToken) {
+        // Look up dev user by username
+        ctx.user = await db.user.findUnique({
+          where: { username: devUsername },
+        });
+
+        if (ctx.user) {
+          // Use persistent dev session for the dev user
+          ctx.session = {
+            userId: ctx.user.id,
+            expiresAt: null, // Never expires
+          } as Session;
+
+          // Skip normal session flow
+          return;
+        }
+      }
+    }
+
+    // Normal session flow
     try {
       ctx.session = await sessions.load(request);
 
@@ -75,7 +107,9 @@ export default defineApp([
       },
       Home,
     ]),
+    ...drawingRoutes,
     ...authRoutes,
     ...testRoutes,
+    ...devRoutes,
   ]),
 ]);

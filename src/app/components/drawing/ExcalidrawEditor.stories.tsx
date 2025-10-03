@@ -248,15 +248,11 @@ export const SaveStatusStates: Story = {
   ),
 };
 
-// With auto-save enabled (interactive with change detection)
-export const WithAutoSave: Story = {
+// Internal auto-save (component manages its own status)
+export const InternalAutoSave: Story = {
   render: () => {
-    const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
-    const [lastSaved, setLastSaved] = useState<Date | null>(null);
-    const [lastChecked, setLastChecked] = useState<Date | null>(null);
-    const [checkResult, setCheckResult] = useState<'changes' | 'no-changes' | null>(null);
-    const [countdown, setCountdown] = useState(10);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const [countdown, setCountdown] = useState(10);
 
     // Countdown timer
     useEffect(() => {
@@ -269,40 +265,75 @@ export const WithAutoSave: Story = {
       return () => clearInterval(timer);
     }, []);
 
+    return (
+      <div style={{ height: '600px', width: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '16px', backgroundColor: '#f0f0f0', borderBottom: '1px solid #ccc' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+            <div>
+              <p style={{ margin: 0, fontSize: '14px', fontWeight: 'bold' }}>
+                🤖 Internal Auto-save: Every 10 seconds (Next check in {countdown}s)
+              </p>
+              <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#666' }}>
+                Component manages status internally - no external callbacks needed
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '16px', fontSize: '12px', flexWrap: 'wrap' }}>
+              <div style={{
+                padding: '4px 8px',
+                borderRadius: '4px',
+                backgroundColor: hasUnsavedChanges ? '#fef3c7' : '#d1fae5',
+                color: hasUnsavedChanges ? '#92400e' : '#065f46',
+                fontWeight: 'bold'
+              }}>
+                Unsaved: {hasUnsavedChanges ? '✓ Yes' : '— No'}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style={{ flex: 1 }}>
+          <ExcalidrawEditor
+            autoSaveInterval={10000}
+            onUnsavedChangesChange={setHasUnsavedChanges}
+            onChange={fn()}
+          />
+        </div>
+      </div>
+    );
+  },
+};
+
+// With auto-save enabled (external status control - demonstrates callback pattern)
+export const WithAutoSave: Story = {
+  render: () => {
+    const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+    const [lastSaved, setLastSaved] = useState<Date | null>(null);
+    const [lastChecked, setLastChecked] = useState<Date | null>(null);
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
     const handleAutoSaveCheck = (hasChanges: boolean) => {
-      setSaveStatus('checking');
       setLastChecked(new Date());
 
-      // Show checking status briefly
-      setTimeout(() => {
-        if (hasChanges) {
-          setCheckResult('changes');
-          setSaveStatus('saving');
+      if (hasChanges) {
+        setSaveStatus('saving');
 
-          // Simulate save operation
-          setTimeout(() => {
-            setSaveStatus('saved');
-            setLastSaved(new Date());
-            setCountdown(10); // Reset countdown
+        // Simulate save operation
+        setTimeout(() => {
+          setSaveStatus('saved');
+          setLastSaved(new Date());
 
-            // Auto-hide after 2 seconds
-            setTimeout(() => {
-              setSaveStatus('idle');
-              setCheckResult(null);
-            }, 2000);
-          }, 800);
-        } else {
-          setCheckResult('no-changes');
-          setSaveStatus('no-changes');
-          setCountdown(10); // Reset countdown
-
-          // Auto-hide after 1.5 seconds
+          // Auto-hide after 2 seconds
           setTimeout(() => {
             setSaveStatus('idle');
-            setCheckResult(null);
-          }, 1500);
-        }
-      }, 500);
+          }, 2000);
+        }, 600);
+      } else {
+        setSaveStatus('no-changes');
+
+        // Auto-hide after 1.5 seconds
+        setTimeout(() => {
+          setSaveStatus('idle');
+        }, 1500);
+      }
     };
 
     return (
@@ -311,7 +342,10 @@ export const WithAutoSave: Story = {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
             <div>
               <p style={{ margin: 0, fontSize: '14px', fontWeight: 'bold' }}>
-                Auto-save: Every 10 seconds (Next check in {countdown}s)
+                📡 External Auto-save: Every 5 seconds
+              </p>
+              <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#666' }}>
+                Status controlled via onAutoSaveCheck callback
               </p>
             </div>
             <div style={{ display: 'flex', gap: '16px', fontSize: '12px', flexWrap: 'wrap' }}>
@@ -327,14 +361,6 @@ export const WithAutoSave: Story = {
               {lastChecked && (
                 <div>
                   <strong>Last Check:</strong> {lastChecked.toLocaleTimeString()}
-                  {checkResult && (
-                    <span style={{
-                      marginLeft: '8px',
-                      color: checkResult === 'changes' ? 'blue' : 'gray'
-                    }}>
-                      ({checkResult === 'changes' ? 'Changes detected ✓' : 'No changes'})
-                    </span>
-                  )}
                 </div>
               )}
               {lastSaved && (
@@ -347,7 +373,7 @@ export const WithAutoSave: Story = {
         </div>
         <div style={{ flex: 1 }}>
           <ExcalidrawEditor
-            autoSaveInterval={10000}
+            autoSaveInterval={5000}
             onAutoSaveCheck={handleAutoSaveCheck}
             onAutoSave={fn()}
             onUnsavedChangesChange={setHasUnsavedChanges}
@@ -357,7 +383,7 @@ export const WithAutoSave: Story = {
         </div>
       </div>
     );
-  },
+  }
 };
 
 // Full height (real-world usage)

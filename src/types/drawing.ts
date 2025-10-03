@@ -21,3 +21,17 @@ export interface DrawingCardProps {
   showLastOpened?: boolean
   loading?: boolean
 }
+
+export interface CreateDrawingFormData {
+  title: string
+  description?: string
+  isPublic: boolean
+}
+
+export interface CreateDrawingFormProps {
+  onSubmit?: (data: CreateDrawingFormData) => void | Promise<void>
+  onCancel?: () => void
+  initialData?: Partial<CreateDrawingFormData>
+  loading?: boolean
+  className?: string
+}

@@ -59,6 +59,9 @@ dist
 # Coverage directory used by tools like istanbul
 coverage
 
+# Test results
+test-results/
+
 # Temporary files
 *.tmp
 *.temp

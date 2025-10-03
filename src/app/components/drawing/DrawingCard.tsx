@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
@@ -70,9 +72,9 @@ const DrawingCard = React.forwardRef<
     >
       {/* Thumbnail */}
       <div className="relative">
-        {drawing.thumbnail ? (
+        {drawing.thumbnailUrl ? (
           <img
-            src={drawing.thumbnail}
+            src={drawing.thumbnailUrl}
             alt={`${drawing.title} thumbnail`}
             className="w-full h-32 object-cover rounded-t-lg"
           />

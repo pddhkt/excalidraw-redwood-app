@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { DrawingCard } from './DrawingCard';
 import { fn } from 'storybook/test';
 import type { Drawing } from '@/types/drawing';
+import { DrawingStatus } from '@/types/drawing';
 
 const meta: Meta<typeof DrawingCard> = {
   title: 'Components/Drawing/DrawingCard',
@@ -24,13 +25,14 @@ const mockDrawing: Drawing = {
   userId: 'user-123',
   title: 'Architecture Diagram',
   description: 'System architecture for the new microservices platform',
-  content: '{}',
-  thumbnail: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE4MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE4MCIgZmlsbD0iI2Y1ZjVmNSIvPjxyZWN0IHg9IjQwIiB5PSI0MCIgd2lkdGg9IjgwIiBoZWlnaHQ9IjYwIiBmaWxsPSIjNjM2NmYxIi8+PHJlY3QgeD0iMTYwIiB5PSI0MCIgd2lkdGg9IjgwIiBoZWlnaHQ9IjYwIiBmaWxsPSIjNjM2NmYxIi8+PHJlY3QgeD0iMTAwIiB5PSIxMjAiIHdpZHRoPSI4MCIgaGVpZ2h0PSI0MCIgZmlsbD0iIzYzNjZmMSIvPjwvc3ZnPg==',
+  contentUrl: '/drawings/1/content.json',
+  thumbnailUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE4MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE4MCIgZmlsbD0iI2Y1ZjVmNSIvPjxyZWN0IHg9IjQwIiB5PSI0MCIgd2lkdGg9IjgwIiBoZWlnaHQ9IjYwIiBmaWxsPSIjNjM2NmYxIi8+PHJlY3QgeD0iMTYwIiB5PSI0MCIgd2lkdGg9IjgwIiBoZWlnaHQ9IjYwIiBmaWxsPSIjNjM2NmYxIi8+PHJlY3QgeD0iMTAwIiB5PSIxMjAiIHdpZHRoPSI4MCIgaGVpZ2h0PSI0MCIgZmlsbD0iIzYzNjZmMSIvPjwvc3ZnPg==',
+  status: DrawingStatus.PUBLISHED,
   isPublic: true,
-  isArchived: false,
   tags: ['architecture', 'design'],
   createdAt: new Date('2024-01-15'),
   updatedAt: new Date('2024-02-20'),
+  publishedAt: new Date('2024-02-20'),
   lastOpenedAt: new Date('2024-02-22'),
 };
 
@@ -40,6 +42,8 @@ const mockPrivateDrawing: Drawing = {
   title: 'Personal Notes',
   description: 'My private brainstorming session',
   isPublic: false,
+  status: DrawingStatus.DRAFT,
+  publishedAt: null,
 };
 
 const mockDrawingNoThumbnail: Drawing = {
@@ -47,7 +51,10 @@ const mockDrawingNoThumbnail: Drawing = {
   id: '3',
   title: 'Untitled Drawing',
   description: null,
-  thumbnail: null,
+  thumbnailUrl: null,
+  contentUrl: null,
+  status: DrawingStatus.DRAFT,
+  publishedAt: null,
   updatedAt: new Date('2024-03-01'),
 };
 

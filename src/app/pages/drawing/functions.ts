@@ -16,6 +16,38 @@ export interface CreateDrawingInput {
 }
 
 /**
+ * Lists all drawings for the authenticated user
+ *
+ * @returns Array of user's drawings, sorted by most recently updated
+ * @throws Error if user is not authenticated
+ */
+export async function listUserDrawings(): Promise<Drawing[]> {
+  const { ctx } = requestInfo
+
+  // Verify user is authenticated
+  if (!ctx.user) {
+    throw new Error("Unauthorized: User must be authenticated")
+  }
+
+  // Fetch all drawings for the user
+  const drawings = await db.drawing.findMany({
+    where: {
+      userId: ctx.user.id,
+    },
+    orderBy: {
+      updatedAt: 'desc',
+    },
+  })
+
+  // Convert to Drawing interface (parse tags back to array)
+  return drawings.map(drawing => ({
+    ...drawing,
+    status: drawing.status as DrawingStatus,
+    tags: drawing.tags ? JSON.parse(drawing.tags) : undefined,
+  }))
+}
+
+/**
  * Creates a new drawing with DRAFT status
  *
  * This only creates the metadata record in D1 database.

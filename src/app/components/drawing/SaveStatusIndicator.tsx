@@ -45,37 +45,47 @@ export function SaveStatusIndicator({ status, className = "" }: SaveStatusIndica
 
   const config = status !== "idle" ? statusConfig[status] : null;
 
-  if (!config) return null;
-
   return (
     <div className={className}>
-      <motion.div
-        layout
-        initial={{ backgroundColor: config.bgColor }}
-        animate={{ backgroundColor: config.bgColor }}
-        transition={{
-          backgroundColor: { duration: 0.3 },
-          layout: {
-            type: "spring",
-            stiffness: 500,
-            damping: 30
-          }
-        }}
-        className="px-3 py-2 rounded-md shadow-lg flex items-center gap-2 text-sm font-medium text-white"
-      >
-        <motion.div
-          key={status}
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.2 }}
-          className="flex items-center gap-2"
-        >
-          {config.icon}
-          <span className="whitespace-nowrap">
-            {config.text}
-          </span>
-        </motion.div>
-      </motion.div>
+      <AnimatePresence>
+        {config && (
+          <motion.div
+            key="status-badge"
+            layout
+            initial={{ opacity: 0, scale: 0.5, backgroundColor: config.bgColor }}
+            animate={{ opacity: 1, scale: 1, backgroundColor: config.bgColor }}
+            exit={{ opacity: 0, scale: 0.5 }}
+            transition={{
+              opacity: { duration: 0.3, ease: "easeOut" },
+              scale: {
+                type: "spring",
+                stiffness: 500,
+                damping: 30
+              },
+              backgroundColor: { duration: 0.3 },
+              layout: {
+                type: "spring",
+                stiffness: 500,
+                damping: 30
+              }
+            }}
+            className="px-3 py-2 rounded-md shadow-lg flex items-center gap-2 text-sm font-medium text-white"
+          >
+            <motion.div
+              key={status}
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.2 }}
+              className="flex items-center gap-2"
+            >
+              {config.icon}
+              <span className="whitespace-nowrap">
+                {config.text}
+              </span>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

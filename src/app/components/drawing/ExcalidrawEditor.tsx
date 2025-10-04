@@ -3,16 +3,14 @@
 import "@excalidraw/excalidraw/index.css";
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { Excalidraw, MainMenu } from "@excalidraw/excalidraw";
-import { Loader2, CheckCircle, AlertCircle, Info } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { AlertCircle } from "lucide-react";
 import type {
   ExcalidrawImperativeAPI,
   ExcalidrawElement,
   AppState,
   BinaryFiles,
 } from "@excalidraw/excalidraw/types/types";
-
-export type SaveStatus = "idle" | "checking" | "saving" | "saved" | "no-changes" | "error";
+import { SaveStatusIndicator, type SaveStatus } from "./SaveStatusIndicator";
 
 export interface ExcalidrawEditorProps {
   /**
@@ -83,84 +81,6 @@ export interface ExcalidrawEditorProps {
    * Current save status
    */
   saveStatus?: SaveStatus;
-}
-
-/**
- * Save Status Indicator Component with Framer Motion Animations
- * Animates content changes (icon/text) rather than entire badge
- */
-function SaveStatusIndicator({ status }: { status: SaveStatus }) {
-  const statusConfig = {
-    checking: {
-      icon: <Loader2 className="h-4 w-4 animate-spin" />,
-      text: "Checking...",
-      bgColor: "#6b7280", // gray-500
-    },
-    saving: {
-      icon: <Loader2 className="h-4 w-4 animate-spin" />,
-      text: "Saving...",
-      bgColor: "#3b82f6", // blue-500
-    },
-    saved: {
-      icon: <CheckCircle className="h-4 w-4" />,
-      text: "Saved",
-      bgColor: "#22c55e", // green-500
-    },
-    "no-changes": {
-      icon: <Info className="h-4 w-4" />,
-      text: "No changes",
-      bgColor: "#9ca3af", // gray-400
-    },
-    error: {
-      icon: <AlertCircle className="h-4 w-4" />,
-      text: "Error saving",
-      bgColor: "#ef4444", // red-500
-    },
-  };
-
-  const config = status !== "idle" ? statusConfig[status] : null;
-
-  if (!config) return null;
-
-  return (
-    <div className="absolute top-4 right-4 z-50">
-      <motion.div
-        layout
-        initial={{ backgroundColor: config.bgColor }}
-        animate={{ backgroundColor: config.bgColor }}
-        transition={{
-          backgroundColor: { duration: 0.3 },
-          layout: { duration: 0.3, ease: "easeInOut" }
-        }}
-        className="px-3 py-2 rounded-md shadow-lg flex items-center gap-2 text-sm font-medium text-white overflow-hidden"
-      >
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={`icon-${status}`}
-            initial={{ opacity: 0, scale: 0.5 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.2 }}
-          >
-            {config.icon}
-          </motion.div>
-        </AnimatePresence>
-
-        <AnimatePresence mode="wait">
-          <motion.span
-            key={`text-${status}`}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.2 }}
-            className="whitespace-nowrap"
-          >
-            {config.text}
-          </motion.span>
-        </AnimatePresence>
-      </motion.div>
-    </div>
-  );
 }
 
 /**
@@ -340,7 +260,7 @@ export function ExcalidrawEditor({
 
   return (
     <div className={`h-full w-full relative ${className}`}>
-      <SaveStatusIndicator status={saveStatus} />
+      <SaveStatusIndicator status={saveStatus} className="absolute top-4 right-4 z-50" />
       <Excalidraw
         excalidrawAPI={(api) => setExcalidrawAPI(api)}
         initialData={initialData}
